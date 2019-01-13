@@ -242,8 +242,14 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_CENTIMETERS_TO_METERS_get")]
   public static extern double PSM_CENTIMETERS_TO_METERS_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector2f_x_set")]
+  public static extern void PSMVector2f_x_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector2f_x_get")]
   public static extern float PSMVector2f_x_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector2f_y_set")]
+  public static extern void PSMVector2f_y_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector2f_y_get")]
   public static extern float PSMVector2f_y_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -254,11 +260,20 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMVector2f")]
   public static extern void delete_PSMVector2f(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_x_set")]
+  public static extern void PSMVector3f_x_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_x_get")]
   public static extern float PSMVector3f_x_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_y_set")]
+  public static extern void PSMVector3f_y_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_y_get")]
   public static extern float PSMVector3f_y_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_z_set")]
+  public static extern void PSMVector3f_z_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3f_z_get")]
   public static extern float PSMVector3f_z_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -269,11 +284,20 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMVector3f")]
   public static extern void delete_PSMVector3f(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_x_set")]
+  public static extern void PSMVector3i_x_set(global::System.Runtime.InteropServices.HandleRef jarg1, int jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_x_get")]
   public static extern int PSMVector3i_x_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_y_set")]
+  public static extern void PSMVector3i_y_set(global::System.Runtime.InteropServices.HandleRef jarg1, int jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_y_get")]
   public static extern int PSMVector3i_y_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_z_set")]
+  public static extern void PSMVector3i_z_set(global::System.Runtime.InteropServices.HandleRef jarg1, int jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVector3i_z_get")]
   public static extern int PSMVector3i_z_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -284,29 +308,56 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMVector3i")]
   public static extern void delete_PSMVector3i(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m00_set")]
+  public static extern void PSMMatrix3f_m00_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m00_get")]
   public static extern float PSMMatrix3f_m00_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m01_set")]
+  public static extern void PSMMatrix3f_m01_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m01_get")]
   public static extern float PSMMatrix3f_m01_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m02_set")]
+  public static extern void PSMMatrix3f_m02_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m02_get")]
   public static extern float PSMMatrix3f_m02_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m10_set")]
+  public static extern void PSMMatrix3f_m10_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m10_get")]
   public static extern float PSMMatrix3f_m10_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m11_set")]
+  public static extern void PSMMatrix3f_m11_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m11_get")]
   public static extern float PSMMatrix3f_m11_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m12_set")]
+  public static extern void PSMMatrix3f_m12_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m12_get")]
   public static extern float PSMMatrix3f_m12_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m20_set")]
+  public static extern void PSMMatrix3f_m20_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m20_get")]
   public static extern float PSMMatrix3f_m20_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m21_set")]
+  public static extern void PSMMatrix3f_m21_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m21_get")]
   public static extern float PSMMatrix3f_m21_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m22_set")]
+  public static extern void PSMMatrix3f_m22_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMMatrix3f_m22_get")]
   public static extern float PSMMatrix3f_m22_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -317,14 +368,26 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMMatrix3f")]
   public static extern void delete_PSMMatrix3f(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_w_set")]
+  public static extern void PSMQuatf_w_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_w_get")]
   public static extern float PSMQuatf_w_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_x_set")]
+  public static extern void PSMQuatf_x_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_x_get")]
   public static extern float PSMQuatf_x_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_y_set")]
+  public static extern void PSMQuatf_y_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_y_get")]
   public static extern float PSMQuatf_y_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_z_set")]
+  public static extern void PSMQuatf_z_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMQuatf_z_get")]
   public static extern float PSMQuatf_z_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -335,8 +398,14 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMQuatf")]
   public static extern void delete_PSMQuatf(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMPosef_Position_set")]
+  public static extern void PSMPosef_Position_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMPosef_Position_get")]
   public static extern global::System.IntPtr PSMPosef_Position_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMPosef_Orientation_set")]
+  public static extern void PSMPosef_Orientation_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMPosef_Orientation_get")]
   public static extern global::System.IntPtr PSMPosef_Orientation_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -347,26 +416,50 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMPosef")]
   public static extern void delete_PSMPosef(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_origin_set")]
+  public static extern void PSMFrustum_origin_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_origin_get")]
   public static extern global::System.IntPtr PSMFrustum_origin_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_forward_set")]
+  public static extern void PSMFrustum_forward_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_forward_get")]
   public static extern global::System.IntPtr PSMFrustum_forward_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_left_set")]
+  public static extern void PSMFrustum_left_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_left_get")]
   public static extern global::System.IntPtr PSMFrustum_left_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_up_set")]
+  public static extern void PSMFrustum_up_set(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_up_get")]
   public static extern global::System.IntPtr PSMFrustum_up_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_HFOV_set")]
+  public static extern void PSMFrustum_HFOV_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_HFOV_get")]
   public static extern float PSMFrustum_HFOV_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_VFOV_set")]
+  public static extern void PSMFrustum_VFOV_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_VFOV_get")]
   public static extern float PSMFrustum_VFOV_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_zNear_set")]
+  public static extern void PSMFrustum_zNear_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_zNear_get")]
   public static extern float PSMFrustum_zNear_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_zFar_set")]
+  public static extern void PSMFrustum_zFar_set(global::System.Runtime.InteropServices.HandleRef jarg1, float jarg2);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMFrustum_zFar_get")]
   public static extern float PSMFrustum_zFar_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -376,75 +469,6 @@ class PSMoveClientPINVOKE {
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMFrustum")]
   public static extern void delete_PSMFrustum(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_type_get")]
-  public static extern int PSMTrackingProjection_shape_type_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection")]
-  public static extern global::System.IntPtr new_PSMTrackingProjection();
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection")]
-  public static extern void delete_PSMTrackingProjection(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_ellipse_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_pointcloud_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape")]
-  public static extern global::System.IntPtr new_PSMTrackingProjection_shape();
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape")]
-  public static extern void delete_PSMTrackingProjection_shape(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_points_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_pointcloud_points_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_point_count_get")]
-  public static extern int PSMTrackingProjection_shape_pointcloud_point_count_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_pointcloud")]
-  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_pointcloud();
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_pointcloud")]
-  public static extern void delete_PSMTrackingProjection_shape_pointcloud(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_triangle_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_triangle_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_quad_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_quad_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_lightbar")]
-  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_lightbar();
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_lightbar")]
-  public static extern void delete_PSMTrackingProjection_shape_lightbar(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_center_get")]
-  public static extern global::System.IntPtr PSMTrackingProjection_shape_ellipse_center_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_x_extent_get")]
-  public static extern float PSMTrackingProjection_shape_ellipse_half_x_extent_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_y_extent_get")]
-  public static extern float PSMTrackingProjection_shape_ellipse_half_y_extent_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_angle_get")]
-  public static extern float PSMTrackingProjection_shape_ellipse_angle_get(global::System.Runtime.InteropServices.HandleRef jarg1);
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_ellipse")]
-  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_ellipse();
-
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_ellipse")]
-  public static extern void delete_PSMTrackingProjection_shape_ellipse(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_Vector2fAdd")]
   public static extern global::System.IntPtr PSM_Vector2fAdd(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
@@ -665,38 +689,68 @@ class PSMoveClientPINVOKE {
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_FrustumSetPose")]
   public static extern void PSM_FrustumSetPose(global::System.Runtime.InteropServices.HandleRef jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
 
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_TrackingProjectionGetArea")]
-  public static extern float PSM_TrackingProjectionGetArea(global::System.Runtime.InteropServices.HandleRef jarg1);
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_int_vector3_zero_set")]
+  public static extern void k_psm_int_vector3_zero_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_int_vector3_zero_get")]
   public static extern global::System.IntPtr k_psm_int_vector3_zero_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_zero_set")]
+  public static extern void k_psm_float_vector3_zero_set(global::System.Runtime.InteropServices.HandleRef jarg1);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_zero_get")]
   public static extern global::System.IntPtr k_psm_float_vector3_zero_get();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_int_vector3_one_set")]
+  public static extern void k_psm_int_vector3_one_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_int_vector3_one_get")]
   public static extern global::System.IntPtr k_psm_int_vector3_one_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_one_set")]
+  public static extern void k_psm_float_vector3_one_set(global::System.Runtime.InteropServices.HandleRef jarg1);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_one_get")]
   public static extern global::System.IntPtr k_psm_float_vector3_one_get();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_i_set")]
+  public static extern void k_psm_float_vector3_i_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_i_get")]
   public static extern global::System.IntPtr k_psm_float_vector3_i_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_j_set")]
+  public static extern void k_psm_float_vector3_j_set(global::System.Runtime.InteropServices.HandleRef jarg1);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_j_get")]
   public static extern global::System.IntPtr k_psm_float_vector3_j_get();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_k_set")]
+  public static extern void k_psm_float_vector3_k_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_float_vector3_k_get")]
   public static extern global::System.IntPtr k_psm_float_vector3_k_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_position_origin_set")]
+  public static extern void k_psm_position_origin_set(global::System.Runtime.InteropServices.HandleRef jarg1);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_position_origin_get")]
   public static extern global::System.IntPtr k_psm_position_origin_get();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_quaternion_identity_set")]
+  public static extern void k_psm_quaternion_identity_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_quaternion_identity_get")]
   public static extern global::System.IntPtr k_psm_quaternion_identity_get();
 
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_matrix_identity_set")]
+  public static extern void k_psm_matrix_identity_set(global::System.Runtime.InteropServices.HandleRef jarg1);
+
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_matrix_identity_get")]
   public static extern global::System.IntPtr k_psm_matrix_identity_get();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_pose_identity_set")]
+  public static extern void k_psm_pose_identity_set(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_k_psm_pose_identity_get")]
   public static extern global::System.IntPtr k_psm_pose_identity_get();
@@ -811,6 +865,75 @@ class PSMoveClientPINVOKE {
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMPSMoveCalibratedSensorData")]
   public static extern void delete_PSMPSMoveCalibratedSensorData(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_type_get")]
+  public static extern int PSMTrackingProjection_shape_type_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection")]
+  public static extern global::System.IntPtr new_PSMTrackingProjection();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection")]
+  public static extern void delete_PSMTrackingProjection(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_ellipse_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_pointcloud_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape")]
+  public static extern global::System.IntPtr new_PSMTrackingProjection_shape();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape")]
+  public static extern void delete_PSMTrackingProjection_shape(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_points_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_pointcloud_points_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_point_count_get")]
+  public static extern int PSMTrackingProjection_shape_pointcloud_point_count_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_pointcloud")]
+  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_pointcloud();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_pointcloud")]
+  public static extern void delete_PSMTrackingProjection_shape_pointcloud(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_triangle_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_triangle_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_quad_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_lightbar_quad_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_lightbar")]
+  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_lightbar();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_lightbar")]
+  public static extern void delete_PSMTrackingProjection_shape_lightbar(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_center_get")]
+  public static extern global::System.IntPtr PSMTrackingProjection_shape_ellipse_center_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_x_extent_get")]
+  public static extern float PSMTrackingProjection_shape_ellipse_half_x_extent_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_y_extent_get")]
+  public static extern float PSMTrackingProjection_shape_ellipse_half_y_extent_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_angle_get")]
+  public static extern float PSMTrackingProjection_shape_ellipse_angle_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_new_PSMTrackingProjection_shape_ellipse")]
+  public static extern global::System.IntPtr new_PSMTrackingProjection_shape_ellipse();
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_delete_PSMTrackingProjection_shape_ellipse")]
+  public static extern void delete_PSMTrackingProjection_shape_ellipse(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMRawTrackerData_TrackerID_get")]
   public static extern int PSMRawTrackerData_TrackerID_get(global::System.Runtime.InteropServices.HandleRef jarg1);
@@ -1743,13 +1866,13 @@ class PSMoveClientPINVOKE {
   public static extern int PSM_GetServiceVersionStringAsync(out int jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_PollNextMessage")]
-  public static extern int PSM_PollNextMessage(global::System.Runtime.InteropServices.HandleRef jarg1, uint jarg2);
+  public static extern int PSM_PollNextMessage(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_SendOpaqueRequest")]
   public static extern int PSM_SendOpaqueRequest(System.IntPtr jarg1, out int jarg2);
 
-  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_RegisterSTDCALLCallback")]
-  public static extern int PSM_RegisterSTDCALLCallback(int jarg1, PSMoveClient.PSMResponseCallback jarg2, System.IntPtr jarg3);
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_RegisterCallback")]
+  public static extern int PSM_RegisterCallback(int jarg1, [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.FunctionPtr)]PSMoveClient.PSMResponseCallback jarg2, System.IntPtr jarg3);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_CancelCallback")]
   public static extern int PSM_CancelCallback(int jarg1);
@@ -1954,6 +2077,9 @@ class PSMoveClientPINVOKE {
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_SetHmdDataStreamTrackerIndexAsync")]
   public static extern int PSM_SetHmdDataStreamTrackerIndexAsync(int jarg1, int jarg2, out int jarg3);
+
+  [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_TrackingProjectionGetArea")]
+  public static extern float PSM_TrackingProjectionGetArea(global::System.Runtime.InteropServices.HandleRef jarg1);
 }
 
 }

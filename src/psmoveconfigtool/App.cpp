@@ -346,7 +346,7 @@ void App::update()
 
 		// Poll events queued up by the call to ClientPSMoveAPI::update()
 		PSMMessage message;
-		while (PSM_PollNextMessage(&message, sizeof(message)) == PSMResult_Success)
+		while (PSM_PollNextMessage(&message) == PSMResult_Success)
 		{
 			switch (message.payload_type)
 			{

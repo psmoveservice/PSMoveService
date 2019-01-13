@@ -41,6 +41,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public PSMVector3f origin {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_origin_set(swigCPtr, PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMFrustum_origin_get(swigCPtr);
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -49,6 +52,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public PSMVector3f forward {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_forward_set(swigCPtr, PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMFrustum_forward_get(swigCPtr);
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -57,6 +63,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public PSMVector3f left {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_left_set(swigCPtr, PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMFrustum_left_get(swigCPtr);
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -65,6 +74,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public PSMVector3f up {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_up_set(swigCPtr, PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMFrustum_up_get(swigCPtr);
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -73,6 +85,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public float HFOV {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_HFOV_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMFrustum_HFOV_get(swigCPtr);
       return ret;
@@ -80,6 +95,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public float VFOV {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_VFOV_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMFrustum_VFOV_get(swigCPtr);
       return ret;
@@ -87,6 +105,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public float zNear {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_zNear_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMFrustum_zNear_get(swigCPtr);
       return ret;
@@ -94,6 +115,9 @@ public class PSMFrustum : global::System.IDisposable {
   }
 
   public float zFar {
+    set {
+      PSMoveClientPINVOKE.PSMFrustum_zFar_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMFrustum_zFar_get(swigCPtr);
       return ret;

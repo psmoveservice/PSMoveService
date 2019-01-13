@@ -41,6 +41,9 @@ public class PSMQuatf : global::System.IDisposable {
   }
 
   public float w {
+    set {
+      PSMoveClientPINVOKE.PSMQuatf_w_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMQuatf_w_get(swigCPtr);
       return ret;
@@ -48,6 +51,9 @@ public class PSMQuatf : global::System.IDisposable {
   }
 
   public float x {
+    set {
+      PSMoveClientPINVOKE.PSMQuatf_x_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMQuatf_x_get(swigCPtr);
       return ret;
@@ -55,6 +61,9 @@ public class PSMQuatf : global::System.IDisposable {
   }
 
   public float y {
+    set {
+      PSMoveClientPINVOKE.PSMQuatf_y_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMQuatf_y_get(swigCPtr);
       return ret;
@@ -62,6 +71,9 @@ public class PSMQuatf : global::System.IDisposable {
   }
 
   public float z {
+    set {
+      PSMoveClientPINVOKE.PSMQuatf_z_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMQuatf_z_get(swigCPtr);
       return ret;

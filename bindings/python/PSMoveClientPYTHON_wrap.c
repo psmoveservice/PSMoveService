@@ -3149,47 +3149,6 @@ SWIGINTERNINLINE PyObject*
   #define SWIG_From_double   PyFloat_FromDouble 
 
 
-SWIGINTERNINLINE PyObject *
-SWIG_From_float  (float value)
-{    
-  return SWIG_From_double  (value);
-}
-
-typedef union {
-  struct {
-    PSMVector2f center;
-    float half_x_extent;
-    float half_y_extent;
-    float angle;
-  } ellipse;
-  struct {
-    PSMVector2f triangle[3];
-    PSMVector2f quad[4];
-  } lightbar;
-  struct {
-    PSMVector2f points[7];
-    int point_count;
-  } pointcloud;
-} PSMTrackingProjection_shape;
-
-typedef struct {
-  PSMVector2f center;
-  float half_x_extent;
-  float half_y_extent;
-  float angle;
-} PSMTrackingProjection_shape_ellipse;
-
-typedef struct {
-  PSMVector2f triangle[3];
-  PSMVector2f quad[4];
-} PSMTrackingProjection_shape_lightbar;
-
-typedef struct {
-  PSMVector2f points[7];
-  int point_count;
-} PSMTrackingProjection_shape_pointcloud;
-
-
 #include <float.h>
 
 
@@ -3293,6 +3252,13 @@ SWIG_AsVal_float (PyObject * obj, float *val)
     }
   }  
   return res;
+}
+
+
+SWIGINTERNINLINE PyObject *
+SWIG_From_float  (float value)
+{    
+  return SWIG_From_double  (value);
 }
 
 
@@ -3410,6 +3376,40 @@ SWIG_strnlen(const char* s, size_t maxlen)
     ;
   return p - s;
 }
+
+typedef union {
+  struct {
+    PSMVector2f center;
+    float half_x_extent;
+    float half_y_extent;
+    float angle;
+  } ellipse;
+  struct {
+    PSMVector2f triangle[3];
+    PSMVector2f quad[4];
+  } lightbar;
+  struct {
+    PSMVector2f points[7];
+    int point_count;
+  } pointcloud;
+} PSMTrackingProjection_shape;
+
+typedef struct {
+  PSMVector2f center;
+  float half_x_extent;
+  float half_y_extent;
+  float angle;
+} PSMTrackingProjection_shape_ellipse;
+
+typedef struct {
+  PSMVector2f triangle[3];
+  PSMVector2f quad[4];
+} PSMTrackingProjection_shape_lightbar;
+
+typedef struct {
+  PSMVector2f points[7];
+  int point_count;
+} PSMTrackingProjection_shape_pointcloud;
 
 
 SWIGINTERNINLINE PyObject*
@@ -3732,6 +3732,36 @@ SWIG_AsVal_unsigned_SS_char (PyObject * obj, unsigned char *val)
 #ifdef __cplusplus
 extern "C" {
 #endif
+SWIGINTERN PyObject *_wrap_PSMVector2f_x_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector2f *arg1 = (PSMVector2f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector2f_x_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector2f_x_set" "', argument " "1"" of type '" "PSMVector2f *""'"); 
+  }
+  arg1 = (PSMVector2f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector2f_x_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->x = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMVector2f_x_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMVector2f *arg1 = (PSMVector2f *) 0 ;
@@ -3748,6 +3778,36 @@ SWIGINTERN PyObject *_wrap_PSMVector2f_x_get(PyObject *SWIGUNUSEDPARM(self), PyO
   arg1 = (PSMVector2f *)(argp1);
   result = (float) ((arg1)->x);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMVector2f_y_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector2f *arg1 = (PSMVector2f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector2f_y_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector2f_y_set" "', argument " "1"" of type '" "PSMVector2f *""'"); 
+  }
+  arg1 = (PSMVector2f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector2f_y_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->y = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -3817,6 +3877,36 @@ SWIGINTERN PyObject *PSMVector2f_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMVector3f_x_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3f_x_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3f_x_set" "', argument " "1"" of type '" "PSMVector3f *""'"); 
+  }
+  arg1 = (PSMVector3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3f_x_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->x = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMVector3f_x_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMVector3f *arg1 = (PSMVector3f *) 0 ;
@@ -3839,6 +3929,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMVector3f_y_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3f_y_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3f_y_set" "', argument " "1"" of type '" "PSMVector3f *""'"); 
+  }
+  arg1 = (PSMVector3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3f_y_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->y = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMVector3f_y_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMVector3f *arg1 = (PSMVector3f *) 0 ;
@@ -3855,6 +3975,36 @@ SWIGINTERN PyObject *_wrap_PSMVector3f_y_get(PyObject *SWIGUNUSEDPARM(self), PyO
   arg1 = (PSMVector3f *)(argp1);
   result = (float) ((arg1)->y);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMVector3f_z_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3f_z_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3f_z_set" "', argument " "1"" of type '" "PSMVector3f *""'"); 
+  }
+  arg1 = (PSMVector3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3f_z_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->z = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -3924,6 +4074,36 @@ SWIGINTERN PyObject *PSMVector3f_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMVector3i_x_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  int val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3i_x_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3i, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3i_x_set" "', argument " "1"" of type '" "PSMVector3i *""'"); 
+  }
+  arg1 = (PSMVector3i *)(argp1);
+  ecode2 = SWIG_AsVal_int(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3i_x_set" "', argument " "2"" of type '" "int""'");
+  } 
+  arg2 = (int)(val2);
+  if (arg1) (arg1)->x = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMVector3i_x_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMVector3i *arg1 = (PSMVector3i *) 0 ;
@@ -3946,6 +4126,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMVector3i_y_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  int val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3i_y_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3i, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3i_y_set" "', argument " "1"" of type '" "PSMVector3i *""'"); 
+  }
+  arg1 = (PSMVector3i *)(argp1);
+  ecode2 = SWIG_AsVal_int(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3i_y_set" "', argument " "2"" of type '" "int""'");
+  } 
+  arg2 = (int)(val2);
+  if (arg1) (arg1)->y = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMVector3i_y_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMVector3i *arg1 = (PSMVector3i *) 0 ;
@@ -3962,6 +4172,36 @@ SWIGINTERN PyObject *_wrap_PSMVector3i_y_get(PyObject *SWIGUNUSEDPARM(self), PyO
   arg1 = (PSMVector3i *)(argp1);
   result = (int) ((arg1)->y);
   resultobj = SWIG_From_int((int)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMVector3i_z_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  int val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMVector3i_z_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMVector3i, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMVector3i_z_set" "', argument " "1"" of type '" "PSMVector3i *""'"); 
+  }
+  arg1 = (PSMVector3i *)(argp1);
+  ecode2 = SWIG_AsVal_int(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMVector3i_z_set" "', argument " "2"" of type '" "int""'");
+  } 
+  arg2 = (int)(val2);
+  if (arg1) (arg1)->z = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4031,6 +4271,36 @@ SWIGINTERN PyObject *PSMVector3i_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m00_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m00_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m00_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m00_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m00 = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMMatrix3f_m00_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -4047,6 +4317,36 @@ SWIGINTERN PyObject *_wrap_PSMMatrix3f_m00_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMMatrix3f *)(argp1);
   result = (float) ((arg1)->m00);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m01_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m01_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m01_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m01_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m01 = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4075,6 +4375,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m02_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m02_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m02_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m02_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m02 = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMMatrix3f_m02_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -4091,6 +4421,36 @@ SWIGINTERN PyObject *_wrap_PSMMatrix3f_m02_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMMatrix3f *)(argp1);
   result = (float) ((arg1)->m02);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m10_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m10_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m10_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m10_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m10 = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4119,6 +4479,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m11_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m11_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m11_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m11_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m11 = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMMatrix3f_m11_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -4135,6 +4525,36 @@ SWIGINTERN PyObject *_wrap_PSMMatrix3f_m11_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMMatrix3f *)(argp1);
   result = (float) ((arg1)->m11);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m12_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m12_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m12_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m12_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m12 = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4163,6 +4583,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m20_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m20_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m20_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m20_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m20 = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMMatrix3f_m20_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -4185,6 +4635,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m21_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m21_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m21_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m21_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m21 = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMMatrix3f_m21_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -4201,6 +4681,36 @@ SWIGINTERN PyObject *_wrap_PSMMatrix3f_m21_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMMatrix3f *)(argp1);
   result = (float) ((arg1)->m21);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMMatrix3f_m22_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMMatrix3f_m22_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMatrix3f, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMMatrix3f_m22_set" "', argument " "1"" of type '" "PSMMatrix3f *""'"); 
+  }
+  arg1 = (PSMMatrix3f *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMMatrix3f_m22_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->m22 = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4270,6 +4780,36 @@ SWIGINTERN PyObject *PSMMatrix3f_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMQuatf_w_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMQuatf_w_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMQuatf, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMQuatf_w_set" "', argument " "1"" of type '" "PSMQuatf *""'"); 
+  }
+  arg1 = (PSMQuatf *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMQuatf_w_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->w = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMQuatf_w_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMQuatf *arg1 = (PSMQuatf *) 0 ;
@@ -4286,6 +4826,36 @@ SWIGINTERN PyObject *_wrap_PSMQuatf_w_get(PyObject *SWIGUNUSEDPARM(self), PyObje
   arg1 = (PSMQuatf *)(argp1);
   result = (float) ((arg1)->w);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMQuatf_x_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMQuatf_x_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMQuatf, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMQuatf_x_set" "', argument " "1"" of type '" "PSMQuatf *""'"); 
+  }
+  arg1 = (PSMQuatf *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMQuatf_x_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->x = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4314,6 +4884,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMQuatf_y_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMQuatf_y_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMQuatf, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMQuatf_y_set" "', argument " "1"" of type '" "PSMQuatf *""'"); 
+  }
+  arg1 = (PSMQuatf *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMQuatf_y_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->y = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMQuatf_y_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMQuatf *arg1 = (PSMQuatf *) 0 ;
@@ -4330,6 +4930,36 @@ SWIGINTERN PyObject *_wrap_PSMQuatf_y_get(PyObject *SWIGUNUSEDPARM(self), PyObje
   arg1 = (PSMQuatf *)(argp1);
   result = (float) ((arg1)->y);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMQuatf_z_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMQuatf_z_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMQuatf, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMQuatf_z_set" "', argument " "1"" of type '" "PSMQuatf *""'"); 
+  }
+  arg1 = (PSMQuatf *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMQuatf_z_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->z = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4399,6 +5029,36 @@ SWIGINTERN PyObject *PSMQuatf_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObj
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMPosef_Position_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMPosef *arg1 = (PSMPosef *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMPosef_Position_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMPosef, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMPosef_Position_set" "', argument " "1"" of type '" "PSMPosef *""'"); 
+  }
+  arg1 = (PSMPosef *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMPosef_Position_set" "', argument " "2"" of type '" "PSMVector3f *""'"); 
+  }
+  arg2 = (PSMVector3f *)(argp2);
+  if (arg1) (arg1)->Position = *arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMPosef_Position_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMPosef *arg1 = (PSMPosef *) 0 ;
@@ -4415,6 +5075,36 @@ SWIGINTERN PyObject *_wrap_PSMPosef_Position_get(PyObject *SWIGUNUSEDPARM(self),
   arg1 = (PSMPosef *)(argp1);
   result = (PSMVector3f *)& ((arg1)->Position);
   resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMPosef_Orientation_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMPosef *arg1 = (PSMPosef *) 0 ;
+  PSMQuatf *arg2 = (PSMQuatf *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMPosef_Orientation_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMPosef, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMPosef_Orientation_set" "', argument " "1"" of type '" "PSMPosef *""'"); 
+  }
+  arg1 = (PSMPosef *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMQuatf, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMPosef_Orientation_set" "', argument " "2"" of type '" "PSMQuatf *""'"); 
+  }
+  arg2 = (PSMQuatf *)(argp2);
+  if (arg1) (arg1)->Orientation = *arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4484,6 +5174,36 @@ SWIGINTERN PyObject *PSMPosef_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObj
   return SWIG_Py_Void();
 }
 
+SWIGINTERN PyObject *_wrap_PSMFrustum_origin_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_origin_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_origin_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMFrustum_origin_set" "', argument " "2"" of type '" "PSMVector3f *""'"); 
+  }
+  arg2 = (PSMVector3f *)(argp2);
+  if (arg1) (arg1)->origin = *arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMFrustum_origin_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -4500,6 +5220,36 @@ SWIGINTERN PyObject *_wrap_PSMFrustum_origin_get(PyObject *SWIGUNUSEDPARM(self),
   arg1 = (PSMFrustum *)(argp1);
   result = (PSMVector3f *)& ((arg1)->origin);
   resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMFrustum_forward_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_forward_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_forward_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMFrustum_forward_set" "', argument " "2"" of type '" "PSMVector3f *""'"); 
+  }
+  arg2 = (PSMVector3f *)(argp2);
+  if (arg1) (arg1)->forward = *arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4528,6 +5278,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMFrustum_left_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_left_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_left_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMFrustum_left_set" "', argument " "2"" of type '" "PSMVector3f *""'"); 
+  }
+  arg2 = (PSMVector3f *)(argp2);
+  if (arg1) (arg1)->left = *arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMFrustum_left_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -4544,6 +5324,36 @@ SWIGINTERN PyObject *_wrap_PSMFrustum_left_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMFrustum *)(argp1);
   result = (PSMVector3f *)& ((arg1)->left);
   resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMFrustum_up_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  void *argp2 = 0 ;
+  int res2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_up_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_up_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  res2 = SWIG_ConvertPtr(obj1, &argp2,SWIGTYPE_p_PSMVector3f, 0 |  0 );
+  if (!SWIG_IsOK(res2)) {
+    SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "PSMFrustum_up_set" "', argument " "2"" of type '" "PSMVector3f *""'"); 
+  }
+  arg2 = (PSMVector3f *)(argp2);
+  if (arg1) (arg1)->up = *arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4572,6 +5382,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMFrustum_HFOV_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_HFOV_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_HFOV_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMFrustum_HFOV_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->HFOV = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMFrustum_HFOV_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -4588,6 +5428,36 @@ SWIGINTERN PyObject *_wrap_PSMFrustum_HFOV_get(PyObject *SWIGUNUSEDPARM(self), P
   arg1 = (PSMFrustum *)(argp1);
   result = (float) ((arg1)->HFOV);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMFrustum_VFOV_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_VFOV_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_VFOV_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMFrustum_VFOV_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->VFOV = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4616,6 +5486,36 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSMFrustum_zNear_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_zNear_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_zNear_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMFrustum_zNear_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->zNear = arg2;
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_PSMFrustum_zNear_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -4632,6 +5532,36 @@ SWIGINTERN PyObject *_wrap_PSMFrustum_zNear_get(PyObject *SWIGUNUSEDPARM(self), 
   arg1 = (PSMFrustum *)(argp1);
   result = (float) ((arg1)->zNear);
   resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMFrustum_zFar_set(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  float val2 ;
+  int ecode2 = 0 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:PSMFrustum_zFar_set",&obj0,&obj1)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMFrustum, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMFrustum_zFar_set" "', argument " "1"" of type '" "PSMFrustum *""'"); 
+  }
+  arg1 = (PSMFrustum *)(argp1);
+  ecode2 = SWIG_AsVal_float(obj1, &val2);
+  if (!SWIG_IsOK(ecode2)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSMFrustum_zFar_set" "', argument " "2"" of type '" "float""'");
+  } 
+  arg2 = (float)(val2);
+  if (arg1) (arg1)->zFar = arg2;
+  resultobj = SWIG_Py_Void();
   return resultobj;
 fail:
   return NULL;
@@ -4698,497 +5628,6 @@ SWIGINTERN PyObject *PSMFrustum_swigregister(PyObject *SWIGUNUSEDPARM(self), PyO
   PyObject *obj;
   if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
   SWIG_TypeNewClientData(SWIGTYPE_p_PSMFrustum, SWIG_NewClientData(obj));
-  return SWIG_Py_Void();
-}
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_type_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMTrackingShapeType result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_type_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_type_get" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
-  }
-  arg1 = (PSMTrackingProjection *)(argp1);
-  result = (PSMTrackingShapeType) ((arg1)->shape_type);
-  resultobj = SWIG_From_int((int)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMTrackingProjection_shape *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_get" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
-  }
-  arg1 = (PSMTrackingProjection *)(argp1);
-  result = (PSMTrackingProjection_shape *)& ((arg1)->shape);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection")) SWIG_fail;
-  result = (PSMTrackingProjection *)calloc(1, sizeof(PSMTrackingProjection));
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection, SWIG_POINTER_NEW |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, SWIG_POINTER_DISOWN |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
-  }
-  arg1 = (PSMTrackingProjection *)(argp1);
-  free((char *) arg1);
-  resultobj = SWIG_Py_Void();
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *PSMTrackingProjection_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *obj;
-  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection, SWIG_NewClientData(obj));
-  return SWIG_Py_Void();
-}
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMTrackingProjection_shape_ellipse *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape *)(argp1);
-  result = (PSMTrackingProjection_shape_ellipse *)& ((arg1)->ellipse);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMTrackingProjection_shape_lightbar *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape *)(argp1);
-  result = (PSMTrackingProjection_shape_lightbar *)& ((arg1)->lightbar);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMTrackingProjection_shape_pointcloud *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape *)(argp1);
-  result = (PSMTrackingProjection_shape_pointcloud *)& ((arg1)->pointcloud);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape")) SWIG_fail;
-  result = (PSMTrackingProjection_shape *)calloc(1, sizeof(PSMTrackingProjection_shape));
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_POINTER_NEW |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_POINTER_DISOWN |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape *)(argp1);
-  free((char *) arg1);
-  resultobj = SWIG_Py_Void();
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *PSMTrackingProjection_shape_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *obj;
-  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_NewClientData(obj));
-  return SWIG_Py_Void();
-}
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_points_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMVector2f *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_points_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_points_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->points);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_point_count_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  int result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_point_count_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_point_count_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
-  result = (int) ((arg1)->point_count);
-  resultobj = SWIG_From_int((int)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_pointcloud(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_pointcloud *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_pointcloud")) SWIG_fail;
-  result = (PSMTrackingProjection_shape_pointcloud *)calloc(1, sizeof(PSMTrackingProjection_shape_pointcloud));
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_POINTER_NEW |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_pointcloud(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_pointcloud",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_POINTER_DISOWN |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_pointcloud" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
-  free((char *) arg1);
-  resultobj = SWIG_Py_Void();
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *PSMTrackingProjection_shape_pointcloud_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *obj;
-  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_NewClientData(obj));
-  return SWIG_Py_Void();
-}
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_triangle_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMVector2f *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_triangle_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_triangle_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->triangle);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_quad_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMVector2f *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_quad_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_quad_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->quad);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_lightbar(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_lightbar *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_lightbar")) SWIG_fail;
-  result = (PSMTrackingProjection_shape_lightbar *)calloc(1, sizeof(PSMTrackingProjection_shape_lightbar));
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_POINTER_NEW |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_lightbar(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_lightbar",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_POINTER_DISOWN |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_lightbar" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
-  free((char *) arg1);
-  resultobj = SWIG_Py_Void();
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *PSMTrackingProjection_shape_lightbar_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *obj;
-  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_NewClientData(obj));
-  return SWIG_Py_Void();
-}
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_center_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  PSMVector2f *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_center_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_center_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
-  result = (PSMVector2f *)& ((arg1)->center);
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_half_x_extent_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  float result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_half_x_extent_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_half_x_extent_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
-  result = (float) ((arg1)->half_x_extent);
-  resultobj = SWIG_From_float((float)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_half_y_extent_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  float result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_half_y_extent_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_half_y_extent_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
-  result = (float) ((arg1)->half_y_extent);
-  resultobj = SWIG_From_float((float)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_angle_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  float result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_angle_get",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_angle_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
-  result = (float) ((arg1)->angle);
-  resultobj = SWIG_From_float((float)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_ellipse(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *result = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_ellipse")) SWIG_fail;
-  result = (PSMTrackingProjection_shape_ellipse *)calloc(1, sizeof(PSMTrackingProjection_shape_ellipse));
-  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_POINTER_NEW |  0 );
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_ellipse(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_ellipse",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_POINTER_DISOWN |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_ellipse" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
-  }
-  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
-  free((char *) arg1);
-  resultobj = SWIG_Py_Void();
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *PSMTrackingProjection_shape_ellipse_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *obj;
-  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_NewClientData(obj));
   return SWIG_Py_Void();
 }
 
@@ -7355,30 +7794,17 @@ fail:
 }
 
 
-SWIGINTERN PyObject *_wrap_PSM_TrackingProjectionGetArea(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  void *argp1 = 0 ;
-  int res1 = 0 ;
-  PyObject * obj0 = 0 ;
-  float result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"O:PSM_TrackingProjectionGetArea",&obj0)) SWIG_fail;
-  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
-  if (!SWIG_IsOK(res1)) {
-    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSM_TrackingProjectionGetArea" "', argument " "1"" of type '" "PSMTrackingProjection const *""'"); 
+SWIGINTERN int Swig_var_k_psm_int_vector3_zero_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3i,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_int_vector3_zero""' of type '""PSMVector3i const *""'");
+    }
+    k_psm_int_vector3_zero = (PSMVector3i *)(argp);
   }
-  arg1 = (PSMTrackingProjection *)(argp1);
-  result = (float)PSM_TrackingProjectionGetArea((PSMTrackingProjection const *)arg1);
-  resultobj = SWIG_From_float((float)(result));
-  return resultobj;
+  return 0;
 fail:
-  return NULL;
-}
-
-
-SWIGINTERN int Swig_var_k_psm_int_vector3_zero_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_int_vector3_zero is read-only.");
   return 1;
 }
 
@@ -7391,8 +7817,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_int_vector3_zero_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_float_vector3_zero_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_float_vector3_zero is read-only.");
+SWIGINTERN int Swig_var_k_psm_float_vector3_zero_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_float_vector3_zero""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_float_vector3_zero = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7405,8 +7840,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_float_vector3_zero_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_int_vector3_one_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_int_vector3_one is read-only.");
+SWIGINTERN int Swig_var_k_psm_int_vector3_one_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3i,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_int_vector3_one""' of type '""PSMVector3i const *""'");
+    }
+    k_psm_int_vector3_one = (PSMVector3i *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7419,8 +7863,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_int_vector3_one_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_float_vector3_one_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_float_vector3_one is read-only.");
+SWIGINTERN int Swig_var_k_psm_float_vector3_one_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_float_vector3_one""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_float_vector3_one = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7433,8 +7886,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_float_vector3_one_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_float_vector3_i_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_float_vector3_i is read-only.");
+SWIGINTERN int Swig_var_k_psm_float_vector3_i_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_float_vector3_i""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_float_vector3_i = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7447,8 +7909,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_float_vector3_i_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_float_vector3_j_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_float_vector3_j is read-only.");
+SWIGINTERN int Swig_var_k_psm_float_vector3_j_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_float_vector3_j""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_float_vector3_j = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7461,8 +7932,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_float_vector3_j_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_float_vector3_k_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_float_vector3_k is read-only.");
+SWIGINTERN int Swig_var_k_psm_float_vector3_k_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_float_vector3_k""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_float_vector3_k = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7475,8 +7955,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_float_vector3_k_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_position_origin_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_position_origin is read-only.");
+SWIGINTERN int Swig_var_k_psm_position_origin_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMVector3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_position_origin""' of type '""PSMVector3f const *""'");
+    }
+    k_psm_position_origin = (PSMVector3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7489,8 +7978,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_position_origin_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_quaternion_identity_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_quaternion_identity is read-only.");
+SWIGINTERN int Swig_var_k_psm_quaternion_identity_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMQuatf,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_quaternion_identity""' of type '""PSMQuatf const *""'");
+    }
+    k_psm_quaternion_identity = (PSMQuatf *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7503,8 +8001,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_quaternion_identity_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_matrix_identity_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_matrix_identity is read-only.");
+SWIGINTERN int Swig_var_k_psm_matrix_identity_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMMatrix3f,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_matrix_identity""' of type '""PSMMatrix3f const *""'");
+    }
+    k_psm_matrix_identity = (PSMMatrix3f *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -7517,8 +8024,17 @@ SWIGINTERN PyObject *Swig_var_k_psm_matrix_identity_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_k_psm_pose_identity_set(PyObject *_val SWIGUNUSED) {
-  SWIG_Error(SWIG_AttributeError,"Variable k_psm_pose_identity is read-only.");
+SWIGINTERN int Swig_var_k_psm_pose_identity_set(PyObject *_val) {
+  {
+    void *argp = 0;
+    int res = SWIG_ConvertPtr(_val, &argp, SWIGTYPE_p_PSMPosef,  0 );  
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""k_psm_pose_identity""' of type '""PSMPosef const *""'");
+    }
+    k_psm_pose_identity = (PSMPosef *)(argp);
+  }
+  return 0;
+fail:
   return 1;
 }
 
@@ -8364,6 +8880,497 @@ SWIGINTERN PyObject *PSMPSMoveCalibratedSensorData_swigregister(PyObject *SWIGUN
   PyObject *obj;
   if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
   SWIG_TypeNewClientData(SWIGTYPE_p_PSMPSMoveCalibratedSensorData, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_type_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMTrackingShapeType result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_type_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_type_get" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
+  }
+  arg1 = (PSMTrackingProjection *)(argp1);
+  result = (PSMTrackingShapeType) ((arg1)->shape_type);
+  resultobj = SWIG_From_int((int)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMTrackingProjection_shape *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_get" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
+  }
+  arg1 = (PSMTrackingProjection *)(argp1);
+  result = (PSMTrackingProjection_shape *)& ((arg1)->shape);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection")) SWIG_fail;
+  result = (PSMTrackingProjection *)calloc(1, sizeof(PSMTrackingProjection));
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection, SWIG_POINTER_NEW |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, SWIG_POINTER_DISOWN |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection" "', argument " "1"" of type '" "PSMTrackingProjection *""'"); 
+  }
+  arg1 = (PSMTrackingProjection *)(argp1);
+  free((char *) arg1);
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *PSMTrackingProjection_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMTrackingProjection_shape_ellipse *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape *)(argp1);
+  result = (PSMTrackingProjection_shape_ellipse *)& ((arg1)->ellipse);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMTrackingProjection_shape_lightbar *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape *)(argp1);
+  result = (PSMTrackingProjection_shape_lightbar *)& ((arg1)->lightbar);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMTrackingProjection_shape_pointcloud *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape *)(argp1);
+  result = (PSMTrackingProjection_shape_pointcloud *)& ((arg1)->pointcloud);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape")) SWIG_fail;
+  result = (PSMTrackingProjection_shape *)calloc(1, sizeof(PSMTrackingProjection_shape));
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_POINTER_NEW |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_POINTER_DISOWN |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape" "', argument " "1"" of type '" "PSMTrackingProjection_shape *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape *)(argp1);
+  free((char *) arg1);
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *PSMTrackingProjection_shape_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_points_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMVector2f *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_points_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_points_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->points);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_pointcloud_point_count_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  int result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_pointcloud_point_count_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_pointcloud_point_count_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
+  result = (int) ((arg1)->point_count);
+  resultobj = SWIG_From_int((int)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_pointcloud(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_pointcloud *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_pointcloud")) SWIG_fail;
+  result = (PSMTrackingProjection_shape_pointcloud *)calloc(1, sizeof(PSMTrackingProjection_shape_pointcloud));
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_POINTER_NEW |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_pointcloud(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_pointcloud",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_POINTER_DISOWN |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_pointcloud" "', argument " "1"" of type '" "PSMTrackingProjection_shape_pointcloud *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)(argp1);
+  free((char *) arg1);
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *PSMTrackingProjection_shape_pointcloud_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_pointcloud, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_triangle_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMVector2f *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_triangle_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_triangle_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->triangle);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_lightbar_quad_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMVector2f *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_lightbar_quad_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_lightbar_quad_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->quad);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_lightbar(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_lightbar *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_lightbar")) SWIG_fail;
+  result = (PSMTrackingProjection_shape_lightbar *)calloc(1, sizeof(PSMTrackingProjection_shape_lightbar));
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_POINTER_NEW |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_lightbar(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_lightbar",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_POINTER_DISOWN |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_lightbar" "', argument " "1"" of type '" "PSMTrackingProjection_shape_lightbar *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_lightbar *)(argp1);
+  free((char *) arg1);
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *PSMTrackingProjection_shape_lightbar_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_lightbar, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_center_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  PSMVector2f *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_center_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_center_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
+  result = (PSMVector2f *)& ((arg1)->center);
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMVector2f, 0 |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_half_x_extent_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  float result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_half_x_extent_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_half_x_extent_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
+  result = (float) ((arg1)->half_x_extent);
+  resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_half_y_extent_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  float result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_half_y_extent_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_half_y_extent_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
+  result = (float) ((arg1)->half_y_extent);
+  resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_PSMTrackingProjection_shape_ellipse_angle_get(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  float result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSMTrackingProjection_shape_ellipse_angle_get",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSMTrackingProjection_shape_ellipse_angle_get" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
+  result = (float) ((arg1)->angle);
+  resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_new_PSMTrackingProjection_shape_ellipse(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *result = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)":new_PSMTrackingProjection_shape_ellipse")) SWIG_fail;
+  result = (PSMTrackingProjection_shape_ellipse *)calloc(1, sizeof(PSMTrackingProjection_shape_ellipse));
+  resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_POINTER_NEW |  0 );
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_delete_PSMTrackingProjection_shape_ellipse(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:delete_PSMTrackingProjection_shape_ellipse",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_POINTER_DISOWN |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_PSMTrackingProjection_shape_ellipse" "', argument " "1"" of type '" "PSMTrackingProjection_shape_ellipse *""'"); 
+  }
+  arg1 = (PSMTrackingProjection_shape_ellipse *)(argp1);
+  free((char *) arg1);
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *PSMTrackingProjection_shape_ellipse_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_PSMTrackingProjection_shape_ellipse, SWIG_NewClientData(obj));
   return SWIG_Py_Void();
 }
 
@@ -15151,27 +16158,18 @@ fail:
 SWIGINTERN PyObject *_wrap_PSM_PollNextMessage(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   PSMMessage *arg1 = (PSMMessage *) 0 ;
-  size_t arg2 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
-  size_t val2 ;
-  int ecode2 = 0 ;
   PyObject * obj0 = 0 ;
-  PyObject * obj1 = 0 ;
   PSMResult result;
   
-  if (!PyArg_ParseTuple(args,(char *)"OO:PSM_PollNextMessage",&obj0,&obj1)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"O:PSM_PollNextMessage",&obj0)) SWIG_fail;
   res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMMessage, 0 |  0 );
   if (!SWIG_IsOK(res1)) {
     SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSM_PollNextMessage" "', argument " "1"" of type '" "PSMMessage *""'"); 
   }
   arg1 = (PSMMessage *)(argp1);
-  ecode2 = SWIG_AsVal_size_t(obj1, &val2);
-  if (!SWIG_IsOK(ecode2)) {
-    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "PSM_PollNextMessage" "', argument " "2"" of type '" "size_t""'");
-  } 
-  arg2 = (size_t)(val2);
-  result = (PSMResult)PSM_PollNextMessage(arg1,arg2);
+  result = (PSMResult)PSM_PollNextMessage(arg1);
   resultobj = SWIG_From_int((int)(result));
   return resultobj;
 fail:
@@ -15238,43 +16236,6 @@ SWIGINTERN PyObject *_wrap_PSM_RegisterCallback(PyObject *SWIGUNUSEDPARM(self), 
     SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "PSM_RegisterCallback" "', argument " "3"" of type '" "void *""'"); 
   }
   result = (PSMResult)PSM_RegisterCallback(arg1,arg2,arg3);
-  resultobj = SWIG_From_int((int)(result));
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_PSM_RegisterSTDCALLCallback(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0;
-  PSMRequestID arg1 ;
-  PSMResponseCallback_STDCALL arg2 = (PSMResponseCallback_STDCALL) 0 ;
-  void *arg3 = (void *) 0 ;
-  int val1 ;
-  int ecode1 = 0 ;
-  int res3 ;
-  PyObject * obj0 = 0 ;
-  PyObject * obj1 = 0 ;
-  PyObject * obj2 = 0 ;
-  PSMResult result;
-  
-  if (!PyArg_ParseTuple(args,(char *)"OOO:PSM_RegisterSTDCALLCallback",&obj0,&obj1,&obj2)) SWIG_fail;
-  ecode1 = SWIG_AsVal_int(obj0, &val1);
-  if (!SWIG_IsOK(ecode1)) {
-    SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "PSM_RegisterSTDCALLCallback" "', argument " "1"" of type '" "PSMRequestID""'");
-  } 
-  arg1 = (PSMRequestID)(val1);
-  {
-    int res = SWIG_ConvertFunctionPtr(obj1, (void**)(&arg2), SWIGTYPE_p_f_p_q_const__PSMResponseMessage_p_void__void);
-    if (!SWIG_IsOK(res)) {
-      SWIG_exception_fail(SWIG_ArgError(res), "in method '" "PSM_RegisterSTDCALLCallback" "', argument " "2"" of type '" "PSMResponseCallback_STDCALL""'"); 
-    }
-  }
-  res3 = SWIG_ConvertPtr(obj2,SWIG_as_voidptrptr(&arg3), 0, 0);
-  if (!SWIG_IsOK(res3)) {
-    SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "PSM_RegisterSTDCALLCallback" "', argument " "3"" of type '" "void *""'"); 
-  }
-  result = (PSMResult)PSM_RegisterSTDCALLCallback(arg1,arg2,arg3);
   resultobj = SWIG_From_int((int)(result));
   return resultobj;
 fail:
@@ -17471,88 +18432,113 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_PSM_TrackingProjectionGetArea(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject * obj0 = 0 ;
+  float result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:PSM_TrackingProjectionGetArea",&obj0)) SWIG_fail;
+  res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_PSMTrackingProjection, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "PSM_TrackingProjectionGetArea" "', argument " "1"" of type '" "PSMTrackingProjection const *""'"); 
+  }
+  arg1 = (PSMTrackingProjection *)(argp1);
+  result = (float)PSM_TrackingProjectionGetArea((PSMTrackingProjection const *)arg1);
+  resultobj = SWIG_From_float((float)(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 static PyMethodDef SwigMethods[] = {
 	 { (char *)"SWIG_PyInstanceMethod_New", (PyCFunction)SWIG_PyInstanceMethod_New, METH_O, NULL},
+	 { (char *)"PSMVector2f_x_set", _wrap_PSMVector2f_x_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector2f_x_get", _wrap_PSMVector2f_x_get, METH_VARARGS, NULL},
+	 { (char *)"PSMVector2f_y_set", _wrap_PSMVector2f_y_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector2f_y_get", _wrap_PSMVector2f_y_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMVector2f", _wrap_new_PSMVector2f, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMVector2f", _wrap_delete_PSMVector2f, METH_VARARGS, NULL},
 	 { (char *)"PSMVector2f_swigregister", PSMVector2f_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3f_x_set", _wrap_PSMVector3f_x_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3f_x_get", _wrap_PSMVector3f_x_get, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3f_y_set", _wrap_PSMVector3f_y_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3f_y_get", _wrap_PSMVector3f_y_get, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3f_z_set", _wrap_PSMVector3f_z_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3f_z_get", _wrap_PSMVector3f_z_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMVector3f", _wrap_new_PSMVector3f, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMVector3f", _wrap_delete_PSMVector3f, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3f_swigregister", PSMVector3f_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3i_x_set", _wrap_PSMVector3i_x_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3i_x_get", _wrap_PSMVector3i_x_get, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3i_y_set", _wrap_PSMVector3i_y_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3i_y_get", _wrap_PSMVector3i_y_get, METH_VARARGS, NULL},
+	 { (char *)"PSMVector3i_z_set", _wrap_PSMVector3i_z_set, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3i_z_get", _wrap_PSMVector3i_z_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMVector3i", _wrap_new_PSMVector3i, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMVector3i", _wrap_delete_PSMVector3i, METH_VARARGS, NULL},
 	 { (char *)"PSMVector3i_swigregister", PSMVector3i_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m00_set", _wrap_PSMMatrix3f_m00_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m00_get", _wrap_PSMMatrix3f_m00_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m01_set", _wrap_PSMMatrix3f_m01_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m01_get", _wrap_PSMMatrix3f_m01_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m02_set", _wrap_PSMMatrix3f_m02_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m02_get", _wrap_PSMMatrix3f_m02_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m10_set", _wrap_PSMMatrix3f_m10_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m10_get", _wrap_PSMMatrix3f_m10_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m11_set", _wrap_PSMMatrix3f_m11_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m11_get", _wrap_PSMMatrix3f_m11_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m12_set", _wrap_PSMMatrix3f_m12_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m12_get", _wrap_PSMMatrix3f_m12_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m20_set", _wrap_PSMMatrix3f_m20_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m20_get", _wrap_PSMMatrix3f_m20_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m21_set", _wrap_PSMMatrix3f_m21_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m21_get", _wrap_PSMMatrix3f_m21_get, METH_VARARGS, NULL},
+	 { (char *)"PSMMatrix3f_m22_set", _wrap_PSMMatrix3f_m22_set, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_m22_get", _wrap_PSMMatrix3f_m22_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMMatrix3f", _wrap_new_PSMMatrix3f, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMMatrix3f", _wrap_delete_PSMMatrix3f, METH_VARARGS, NULL},
 	 { (char *)"PSMMatrix3f_swigregister", PSMMatrix3f_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMQuatf_w_set", _wrap_PSMQuatf_w_set, METH_VARARGS, NULL},
 	 { (char *)"PSMQuatf_w_get", _wrap_PSMQuatf_w_get, METH_VARARGS, NULL},
+	 { (char *)"PSMQuatf_x_set", _wrap_PSMQuatf_x_set, METH_VARARGS, NULL},
 	 { (char *)"PSMQuatf_x_get", _wrap_PSMQuatf_x_get, METH_VARARGS, NULL},
+	 { (char *)"PSMQuatf_y_set", _wrap_PSMQuatf_y_set, METH_VARARGS, NULL},
 	 { (char *)"PSMQuatf_y_get", _wrap_PSMQuatf_y_get, METH_VARARGS, NULL},
+	 { (char *)"PSMQuatf_z_set", _wrap_PSMQuatf_z_set, METH_VARARGS, NULL},
 	 { (char *)"PSMQuatf_z_get", _wrap_PSMQuatf_z_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMQuatf", _wrap_new_PSMQuatf, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMQuatf", _wrap_delete_PSMQuatf, METH_VARARGS, NULL},
 	 { (char *)"PSMQuatf_swigregister", PSMQuatf_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMPosef_Position_set", _wrap_PSMPosef_Position_set, METH_VARARGS, NULL},
 	 { (char *)"PSMPosef_Position_get", _wrap_PSMPosef_Position_get, METH_VARARGS, NULL},
+	 { (char *)"PSMPosef_Orientation_set", _wrap_PSMPosef_Orientation_set, METH_VARARGS, NULL},
 	 { (char *)"PSMPosef_Orientation_get", _wrap_PSMPosef_Orientation_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMPosef", _wrap_new_PSMPosef, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMPosef", _wrap_delete_PSMPosef, METH_VARARGS, NULL},
 	 { (char *)"PSMPosef_swigregister", PSMPosef_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_origin_set", _wrap_PSMFrustum_origin_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_origin_get", _wrap_PSMFrustum_origin_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_forward_set", _wrap_PSMFrustum_forward_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_forward_get", _wrap_PSMFrustum_forward_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_left_set", _wrap_PSMFrustum_left_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_left_get", _wrap_PSMFrustum_left_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_up_set", _wrap_PSMFrustum_up_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_up_get", _wrap_PSMFrustum_up_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_HFOV_set", _wrap_PSMFrustum_HFOV_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_HFOV_get", _wrap_PSMFrustum_HFOV_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_VFOV_set", _wrap_PSMFrustum_VFOV_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_VFOV_get", _wrap_PSMFrustum_VFOV_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_zNear_set", _wrap_PSMFrustum_zNear_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_zNear_get", _wrap_PSMFrustum_zNear_get, METH_VARARGS, NULL},
+	 { (char *)"PSMFrustum_zFar_set", _wrap_PSMFrustum_zFar_set, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_zFar_get", _wrap_PSMFrustum_zFar_get, METH_VARARGS, NULL},
 	 { (char *)"new_PSMFrustum", _wrap_new_PSMFrustum, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMFrustum", _wrap_delete_PSMFrustum, METH_VARARGS, NULL},
 	 { (char *)"PSMFrustum_swigregister", PSMFrustum_swigregister, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_type_get", _wrap_PSMTrackingProjection_shape_type_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_get", _wrap_PSMTrackingProjection_shape_get, METH_VARARGS, NULL},
-	 { (char *)"new_PSMTrackingProjection", _wrap_new_PSMTrackingProjection, METH_VARARGS, NULL},
-	 { (char *)"delete_PSMTrackingProjection", _wrap_delete_PSMTrackingProjection, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_swigregister", PSMTrackingProjection_swigregister, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_get", _wrap_PSMTrackingProjection_shape_ellipse_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_lightbar_get", _wrap_PSMTrackingProjection_shape_lightbar_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_pointcloud_get", _wrap_PSMTrackingProjection_shape_pointcloud_get, METH_VARARGS, NULL},
-	 { (char *)"new_PSMTrackingProjection_shape", _wrap_new_PSMTrackingProjection_shape, METH_VARARGS, NULL},
-	 { (char *)"delete_PSMTrackingProjection_shape", _wrap_delete_PSMTrackingProjection_shape, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_swigregister", PSMTrackingProjection_shape_swigregister, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_pointcloud_points_get", _wrap_PSMTrackingProjection_shape_pointcloud_points_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_pointcloud_point_count_get", _wrap_PSMTrackingProjection_shape_pointcloud_point_count_get, METH_VARARGS, NULL},
-	 { (char *)"new_PSMTrackingProjection_shape_pointcloud", _wrap_new_PSMTrackingProjection_shape_pointcloud, METH_VARARGS, NULL},
-	 { (char *)"delete_PSMTrackingProjection_shape_pointcloud", _wrap_delete_PSMTrackingProjection_shape_pointcloud, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_pointcloud_swigregister", PSMTrackingProjection_shape_pointcloud_swigregister, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_lightbar_triangle_get", _wrap_PSMTrackingProjection_shape_lightbar_triangle_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_lightbar_quad_get", _wrap_PSMTrackingProjection_shape_lightbar_quad_get, METH_VARARGS, NULL},
-	 { (char *)"new_PSMTrackingProjection_shape_lightbar", _wrap_new_PSMTrackingProjection_shape_lightbar, METH_VARARGS, NULL},
-	 { (char *)"delete_PSMTrackingProjection_shape_lightbar", _wrap_delete_PSMTrackingProjection_shape_lightbar, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_lightbar_swigregister", PSMTrackingProjection_shape_lightbar_swigregister, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_center_get", _wrap_PSMTrackingProjection_shape_ellipse_center_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_half_x_extent_get", _wrap_PSMTrackingProjection_shape_ellipse_half_x_extent_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_half_y_extent_get", _wrap_PSMTrackingProjection_shape_ellipse_half_y_extent_get, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_angle_get", _wrap_PSMTrackingProjection_shape_ellipse_angle_get, METH_VARARGS, NULL},
-	 { (char *)"new_PSMTrackingProjection_shape_ellipse", _wrap_new_PSMTrackingProjection_shape_ellipse, METH_VARARGS, NULL},
-	 { (char *)"delete_PSMTrackingProjection_shape_ellipse", _wrap_delete_PSMTrackingProjection_shape_ellipse, METH_VARARGS, NULL},
-	 { (char *)"PSMTrackingProjection_shape_ellipse_swigregister", PSMTrackingProjection_shape_ellipse_swigregister, METH_VARARGS, NULL},
 	 { (char *)"PSM_Vector2fAdd", _wrap_PSM_Vector2fAdd, METH_VARARGS, NULL},
 	 { (char *)"PSM_Vector2fSubtract", _wrap_PSM_Vector2fSubtract, METH_VARARGS, NULL},
 	 { (char *)"PSM_Vector2fScale", _wrap_PSM_Vector2fScale, METH_VARARGS, NULL},
@@ -17626,7 +18612,6 @@ static PyMethodDef SwigMethods[] = {
 	 { (char *)"PSM_PosefTransformPoint", _wrap_PSM_PosefTransformPoint, METH_VARARGS, NULL},
 	 { (char *)"PSM_PosefInverseTransformPoint", _wrap_PSM_PosefInverseTransformPoint, METH_VARARGS, NULL},
 	 { (char *)"PSM_FrustumSetPose", _wrap_PSM_FrustumSetPose, METH_VARARGS, NULL},
-	 { (char *)"PSM_TrackingProjectionGetArea", _wrap_PSM_TrackingProjectionGetArea, METH_VARARGS, NULL},
 	 { (char *)"PSMClientControllerInfo_controller_id_get", _wrap_PSMClientControllerInfo_controller_id_get, METH_VARARGS, NULL},
 	 { (char *)"PSMClientControllerInfo_controller_type_get", _wrap_PSMClientControllerInfo_controller_type_get, METH_VARARGS, NULL},
 	 { (char *)"PSMClientControllerInfo_controller_hand_get", _wrap_PSMClientControllerInfo_controller_hand_get, METH_VARARGS, NULL},
@@ -17667,6 +18652,34 @@ static PyMethodDef SwigMethods[] = {
 	 { (char *)"new_PSMPSMoveCalibratedSensorData", _wrap_new_PSMPSMoveCalibratedSensorData, METH_VARARGS, NULL},
 	 { (char *)"delete_PSMPSMoveCalibratedSensorData", _wrap_delete_PSMPSMoveCalibratedSensorData, METH_VARARGS, NULL},
 	 { (char *)"PSMPSMoveCalibratedSensorData_swigregister", PSMPSMoveCalibratedSensorData_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_type_get", _wrap_PSMTrackingProjection_shape_type_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_get", _wrap_PSMTrackingProjection_shape_get, METH_VARARGS, NULL},
+	 { (char *)"new_PSMTrackingProjection", _wrap_new_PSMTrackingProjection, METH_VARARGS, NULL},
+	 { (char *)"delete_PSMTrackingProjection", _wrap_delete_PSMTrackingProjection, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_swigregister", PSMTrackingProjection_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_get", _wrap_PSMTrackingProjection_shape_ellipse_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_lightbar_get", _wrap_PSMTrackingProjection_shape_lightbar_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_pointcloud_get", _wrap_PSMTrackingProjection_shape_pointcloud_get, METH_VARARGS, NULL},
+	 { (char *)"new_PSMTrackingProjection_shape", _wrap_new_PSMTrackingProjection_shape, METH_VARARGS, NULL},
+	 { (char *)"delete_PSMTrackingProjection_shape", _wrap_delete_PSMTrackingProjection_shape, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_swigregister", PSMTrackingProjection_shape_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_pointcloud_points_get", _wrap_PSMTrackingProjection_shape_pointcloud_points_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_pointcloud_point_count_get", _wrap_PSMTrackingProjection_shape_pointcloud_point_count_get, METH_VARARGS, NULL},
+	 { (char *)"new_PSMTrackingProjection_shape_pointcloud", _wrap_new_PSMTrackingProjection_shape_pointcloud, METH_VARARGS, NULL},
+	 { (char *)"delete_PSMTrackingProjection_shape_pointcloud", _wrap_delete_PSMTrackingProjection_shape_pointcloud, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_pointcloud_swigregister", PSMTrackingProjection_shape_pointcloud_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_lightbar_triangle_get", _wrap_PSMTrackingProjection_shape_lightbar_triangle_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_lightbar_quad_get", _wrap_PSMTrackingProjection_shape_lightbar_quad_get, METH_VARARGS, NULL},
+	 { (char *)"new_PSMTrackingProjection_shape_lightbar", _wrap_new_PSMTrackingProjection_shape_lightbar, METH_VARARGS, NULL},
+	 { (char *)"delete_PSMTrackingProjection_shape_lightbar", _wrap_delete_PSMTrackingProjection_shape_lightbar, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_lightbar_swigregister", PSMTrackingProjection_shape_lightbar_swigregister, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_center_get", _wrap_PSMTrackingProjection_shape_ellipse_center_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_half_x_extent_get", _wrap_PSMTrackingProjection_shape_ellipse_half_x_extent_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_half_y_extent_get", _wrap_PSMTrackingProjection_shape_ellipse_half_y_extent_get, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_angle_get", _wrap_PSMTrackingProjection_shape_ellipse_angle_get, METH_VARARGS, NULL},
+	 { (char *)"new_PSMTrackingProjection_shape_ellipse", _wrap_new_PSMTrackingProjection_shape_ellipse, METH_VARARGS, NULL},
+	 { (char *)"delete_PSMTrackingProjection_shape_ellipse", _wrap_delete_PSMTrackingProjection_shape_ellipse, METH_VARARGS, NULL},
+	 { (char *)"PSMTrackingProjection_shape_ellipse_swigregister", PSMTrackingProjection_shape_ellipse_swigregister, METH_VARARGS, NULL},
 	 { (char *)"PSMRawTrackerData_TrackerID_get", _wrap_PSMRawTrackerData_TrackerID_get, METH_VARARGS, NULL},
 	 { (char *)"PSMRawTrackerData_ScreenLocation_get", _wrap_PSMRawTrackerData_ScreenLocation_get, METH_VARARGS, NULL},
 	 { (char *)"PSMRawTrackerData_RelativePositionCm_get", _wrap_PSMRawTrackerData_RelativePositionCm_get, METH_VARARGS, NULL},
@@ -18008,7 +19021,6 @@ static PyMethodDef SwigMethods[] = {
 	 { (char *)"PSM_PollNextMessage", _wrap_PSM_PollNextMessage, METH_VARARGS, NULL},
 	 { (char *)"PSM_SendOpaqueRequest", _wrap_PSM_SendOpaqueRequest, METH_VARARGS, NULL},
 	 { (char *)"PSM_RegisterCallback", _wrap_PSM_RegisterCallback, METH_VARARGS, NULL},
-	 { (char *)"PSM_RegisterSTDCALLCallback", _wrap_PSM_RegisterSTDCALLCallback, METH_VARARGS, NULL},
 	 { (char *)"PSM_CancelCallback", _wrap_PSM_CancelCallback, METH_VARARGS, NULL},
 	 { (char *)"PSM_EatResponse", _wrap_PSM_EatResponse, METH_VARARGS, NULL},
 	 { (char *)"PSM_GetController", _wrap_PSM_GetController, METH_VARARGS, NULL},
@@ -18077,6 +19089,7 @@ static PyMethodDef SwigMethods[] = {
 	 { (char *)"PSM_StartHmdDataStreamAsync", _wrap_PSM_StartHmdDataStreamAsync, METH_VARARGS, NULL},
 	 { (char *)"PSM_StopHmdDataStreamAsync", _wrap_PSM_StopHmdDataStreamAsync, METH_VARARGS, NULL},
 	 { (char *)"PSM_SetHmdDataStreamTrackerIndexAsync", _wrap_PSM_SetHmdDataStreamTrackerIndexAsync, METH_VARARGS, NULL},
+	 { (char *)"PSM_TrackingProjectionGetArea", _wrap_PSM_TrackingProjectionGetArea, METH_VARARGS, NULL},
 	 { NULL, NULL, 0, NULL }
 };
 
@@ -18145,7 +19158,7 @@ static swig_type_info _swigt__p_PSMVirtualController = {"_p_PSMVirtualController
 static swig_type_info _swigt__p_PSMVirtualHMD = {"_p_PSMVirtualHMD", "PSMVirtualHMD *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_bool = {"_p_bool", "bool *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "char *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_f_p_q_const__PSMResponseMessage_p_void__void = {"_p_f_p_q_const__PSMResponseMessage_p_void__void", "PSMResponseCallback_STDCALL|PSMResponseCallback_CDECL|void (*)(PSMResponseMessage const *,void *)", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_f_p_q_const__PSMResponseMessage_p_void__void = {"_p_f_p_q_const__PSMResponseMessage_p_void__void", "PSMResponseCallback_CDECL|void (*)(PSMResponseMessage const *,void *)", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_int = {"_p_int", "int *|PSMHmdID *|PSMTrackerID *|PSMControllerID *|PSMRequestID *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "unsigned char *", 0, 0, (void*)0, 0};
@@ -19061,10 +20074,6 @@ SWIG_init(void) {
   SWIG_Python_SetConstant(d, "PSMOVESERVICE_MAX_VERSION_STRING_LEN",SWIG_From_int((int)(32)));
   SWIG_Python_SetConstant(d, "PSM_METERS_TO_CENTIMETERS",SWIG_From_double((double)(100.)));
   SWIG_Python_SetConstant(d, "PSM_CENTIMETERS_TO_METERS",SWIG_From_double((double)(0.01)));
-  SWIG_Python_SetConstant(d, "PSMShape_INVALID_PROJECTION",SWIG_From_int((int)(PSMShape_INVALID_PROJECTION)));
-  SWIG_Python_SetConstant(d, "PSMShape_Ellipse",SWIG_From_int((int)(PSMShape_Ellipse)));
-  SWIG_Python_SetConstant(d, "PSMShape_LightBar",SWIG_From_int((int)(PSMShape_LightBar)));
-  SWIG_Python_SetConstant(d, "PSMShape_PointCloud",SWIG_From_int((int)(PSMShape_PointCloud)));
   PyDict_SetItemString(md,(char *)"cvar", SWIG_globals());
   SWIG_addvarlink(SWIG_globals(),(char *)"k_psm_int_vector3_zero",Swig_var_k_psm_int_vector3_zero_get, Swig_var_k_psm_int_vector3_zero_set);
   SWIG_addvarlink(SWIG_globals(),(char *)"k_psm_float_vector3_zero",Swig_var_k_psm_float_vector3_zero_get, Swig_var_k_psm_float_vector3_zero_set);
@@ -19132,6 +20141,10 @@ SWIG_init(void) {
   SWIG_Python_SetConstant(d, "PSMDriver_CL_EYE",SWIG_From_int((int)(PSMDriver_CL_EYE)));
   SWIG_Python_SetConstant(d, "PSMDriver_CL_EYE_MULTICAM",SWIG_From_int((int)(PSMDriver_CL_EYE_MULTICAM)));
   SWIG_Python_SetConstant(d, "PSMDriver_GENERIC_WEBCAM",SWIG_From_int((int)(PSMDriver_GENERIC_WEBCAM)));
+  SWIG_Python_SetConstant(d, "PSMShape_INVALID_PROJECTION",SWIG_From_int((int)(PSMShape_INVALID_PROJECTION)));
+  SWIG_Python_SetConstant(d, "PSMShape_Ellipse",SWIG_From_int((int)(PSMShape_Ellipse)));
+  SWIG_Python_SetConstant(d, "PSMShape_LightBar",SWIG_From_int((int)(PSMShape_LightBar)));
+  SWIG_Python_SetConstant(d, "PSMShape_PointCloud",SWIG_From_int((int)(PSMShape_PointCloud)));
   SWIG_Python_SetConstant(d, "PSMEvent_connectedToService",SWIG_From_int((int)(PSMEvent_connectedToService)));
   SWIG_Python_SetConstant(d, "PSMEvent_failedToConnectToService",SWIG_From_int((int)(PSMEvent_failedToConnectToService)));
   SWIG_Python_SetConstant(d, "PSMEvent_disconnectedFromService",SWIG_From_int((int)(PSMEvent_disconnectedFromService)));

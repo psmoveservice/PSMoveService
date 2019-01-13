@@ -32,7 +32,19 @@ public class PSMoveClient {
   }
 
 
-  public delegate void PSMResponseCallback(PSMResponseMessage message, System.IntPtr callback_userdata); 
+  public delegate void PSMResponseDelegate(PSMResponseMessage message);   
+
+  [global::System.Runtime.InteropServices.UnmanagedFunctionPointer(global::System.Runtime.InteropServices.CallingConvention.Cdecl)]
+  public delegate void PSMResponseCallback(System.IntPtr message_ptr, System.IntPtr callback_userdata); 
+  
+  public static PSMResult PSM_RegisterDelegate(int request_id, PSMoveClient.PSMResponseDelegate response_delegate) {
+    PSMResponseCallback callback = (message_ptr, callback_userdata) => {
+      response_delegate(new PSMResponseMessage(message_ptr, false));
+    };
+   
+    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_RegisterCallback(request_id, callback, System.IntPtr.Zero);
+    return ret;
+  }  
 
   public static PSMVector2f PSM_Vector2fAdd(PSMVector2f a, PSMVector2f b) {
     PSMVector2f ret = new PSMVector2f(PSMoveClientPINVOKE.PSM_Vector2fAdd(PSMVector2f.getCPtr(a), PSMVector2f.getCPtr(b)), true);
@@ -398,12 +410,10 @@ public class PSMoveClient {
     PSMoveClientPINVOKE.PSM_FrustumSetPose(PSMFrustum.getCPtr(frustum), PSMPosef.getCPtr(pose));
   }
 
-  public static float PSM_TrackingProjectionGetArea(PSMTrackingProjection proj) {
-    float ret = PSMoveClientPINVOKE.PSM_TrackingProjectionGetArea(PSMTrackingProjection.getCPtr(proj));
-    return ret;
-  }
-
   public static PSMVector3i k_psm_int_vector3_zero {
+    set {
+      PSMoveClientPINVOKE.k_psm_int_vector3_zero_set(PSMVector3i.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_int_vector3_zero_get();
       PSMVector3i ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3i(cPtr, false);
@@ -412,6 +422,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_float_vector3_zero {
+    set {
+      PSMoveClientPINVOKE.k_psm_float_vector3_zero_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_float_vector3_zero_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -420,6 +433,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3i k_psm_int_vector3_one {
+    set {
+      PSMoveClientPINVOKE.k_psm_int_vector3_one_set(PSMVector3i.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_int_vector3_one_get();
       PSMVector3i ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3i(cPtr, false);
@@ -428,6 +444,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_float_vector3_one {
+    set {
+      PSMoveClientPINVOKE.k_psm_float_vector3_one_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_float_vector3_one_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -436,6 +455,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_float_vector3_i {
+    set {
+      PSMoveClientPINVOKE.k_psm_float_vector3_i_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_float_vector3_i_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -444,6 +466,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_float_vector3_j {
+    set {
+      PSMoveClientPINVOKE.k_psm_float_vector3_j_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_float_vector3_j_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -452,6 +477,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_float_vector3_k {
+    set {
+      PSMoveClientPINVOKE.k_psm_float_vector3_k_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_float_vector3_k_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -460,6 +488,9 @@ public class PSMoveClient {
   }
 
   public static PSMVector3f k_psm_position_origin {
+    set {
+      PSMoveClientPINVOKE.k_psm_position_origin_set(PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_position_origin_get();
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -468,6 +499,9 @@ public class PSMoveClient {
   }
 
   public static PSMQuatf k_psm_quaternion_identity {
+    set {
+      PSMoveClientPINVOKE.k_psm_quaternion_identity_set(PSMQuatf.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_quaternion_identity_get();
       PSMQuatf ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMQuatf(cPtr, false);
@@ -476,6 +510,9 @@ public class PSMoveClient {
   }
 
   public static PSMMatrix3f k_psm_matrix_identity {
+    set {
+      PSMoveClientPINVOKE.k_psm_matrix_identity_set(PSMMatrix3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_matrix_identity_get();
       PSMMatrix3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMMatrix3f(cPtr, false);
@@ -484,6 +521,9 @@ public class PSMoveClient {
   }
 
   public static PSMPosef k_psm_pose_identity {
+    set {
+      PSMoveClientPINVOKE.k_psm_pose_identity_set(PSMPosef.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.k_psm_pose_identity_get();
       PSMPosef ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMPosef(cPtr, false);
@@ -573,8 +613,8 @@ public class PSMoveClient {
     return ret;
   }
 
-  public static PSMResult PSM_PollNextMessage(PSMMessage out_message, uint message_size) {
-    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_PollNextMessage(PSMMessage.getCPtr(out_message), message_size);
+  public static PSMResult PSM_PollNextMessage(PSMMessage out_message) {
+    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_PollNextMessage(PSMMessage.getCPtr(out_message));
     return ret;
   }
 
@@ -583,8 +623,8 @@ public class PSMoveClient {
     return ret;
   }
 
-  public static PSMResult PSM_RegisterSTDCALLCallback(int request_id, PSMoveClient.PSMResponseCallback callback, System.IntPtr callback_userdata) {
-    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_RegisterSTDCALLCallback(request_id, callback, callback_userdata);
+  public static PSMResult PSM_RegisterCallback(int request_id, PSMoveClient.PSMResponseCallback callback, System.IntPtr callback_userdata) {
+    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_RegisterCallback(request_id, callback, callback_userdata);
     return ret;
   }
 
@@ -928,6 +968,11 @@ public class PSMoveClient {
 
   public static PSMResult PSM_SetHmdDataStreamTrackerIndexAsync(int hmd_id, int tracker_id, out int out_request_id) {
     PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_SetHmdDataStreamTrackerIndexAsync(hmd_id, tracker_id, out out_request_id);
+    return ret;
+  }
+
+  public static float PSM_TrackingProjectionGetArea(PSMTrackingProjection proj) {
+    float ret = PSMoveClientPINVOKE.PSM_TrackingProjectionGetArea(PSMTrackingProjection.getCPtr(proj));
     return ret;
   }
 

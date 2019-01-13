@@ -25,9 +25,6 @@
 #define PSM_PUBLIC_CLASS
 #define PSM_PUBLIC_VARIABLE_DECL(rval) rval
 
-// Make all variables in exposed structs read-only
-%immutable;
-
 #if defined(SWIGPYTHON)
 #endif  /* SWIGPYTHON */
 
@@ -39,4 +36,7 @@
 %include "../src/psmoveprotocol/SharedConstants.h"
 %include "../src/psmoveclient/ClientConstants.h"
 %include "../src/psmoveclient/ClientGeometry_CAPI.h"
+
+// Make all variables read-only in exposed structs in PSMoveClient_CAPI.h
+%immutable;
 %include "../src/psmoveclient/PSMoveClient_CAPI.h"

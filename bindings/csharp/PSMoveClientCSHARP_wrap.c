@@ -548,6 +548,16 @@ SWIGEXPORT double SWIGSTDCALL CSharp_PSMoveService_PSM_CENTIMETERS_TO_METERS_get
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector2f_x_set(void * jarg1, float jarg2) {
+  PSMVector2f *arg1 = (PSMVector2f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMVector2f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->x = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector2f_x_get(void * jarg1) {
   float jresult ;
   PSMVector2f *arg1 = (PSMVector2f *) 0 ;
@@ -557,6 +567,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector2f_x_get(void * jarg1
   result = (float) ((arg1)->x);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector2f_y_set(void * jarg1, float jarg2) {
+  PSMVector2f *arg1 = (PSMVector2f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMVector2f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->y = arg2;
 }
 
 
@@ -590,6 +610,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMVector2f(void * jarg1
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_x_set(void * jarg1, float jarg2) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->x = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_x_get(void * jarg1) {
   float jresult ;
   PSMVector3f *arg1 = (PSMVector3f *) 0 ;
@@ -602,6 +632,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_x_get(void * jarg1
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_y_set(void * jarg1, float jarg2) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->y = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_y_get(void * jarg1) {
   float jresult ;
   PSMVector3f *arg1 = (PSMVector3f *) 0 ;
@@ -611,6 +651,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_y_get(void * jarg1
   result = (float) ((arg1)->y);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3f_z_set(void * jarg1, float jarg2) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->z = arg2;
 }
 
 
@@ -644,6 +694,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMVector3f(void * jarg1
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_x_set(void * jarg1, int jarg2) {
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  
+  arg1 = (PSMVector3i *)jarg1; 
+  arg2 = (int)jarg2; 
+  if (arg1) (arg1)->x = arg2;
+}
+
+
 SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_x_get(void * jarg1) {
   int jresult ;
   PSMVector3i *arg1 = (PSMVector3i *) 0 ;
@@ -656,6 +716,16 @@ SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_x_get(void * jarg1) 
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_y_set(void * jarg1, int jarg2) {
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  
+  arg1 = (PSMVector3i *)jarg1; 
+  arg2 = (int)jarg2; 
+  if (arg1) (arg1)->y = arg2;
+}
+
+
 SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_y_get(void * jarg1) {
   int jresult ;
   PSMVector3i *arg1 = (PSMVector3i *) 0 ;
@@ -665,6 +735,16 @@ SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_y_get(void * jarg1) 
   result = (int) ((arg1)->y);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMVector3i_z_set(void * jarg1, int jarg2) {
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  int arg2 ;
+  
+  arg1 = (PSMVector3i *)jarg1; 
+  arg2 = (int)jarg2; 
+  if (arg1) (arg1)->z = arg2;
 }
 
 
@@ -698,6 +778,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMVector3i(void * jarg1
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m00_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m00 = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m00_get(void * jarg1) {
   float jresult ;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -707,6 +797,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m00_get(void * jar
   result = (float) ((arg1)->m00);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m01_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m01 = arg2;
 }
 
 
@@ -722,6 +822,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m01_get(void * jar
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m02_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m02 = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m02_get(void * jarg1) {
   float jresult ;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -731,6 +841,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m02_get(void * jar
   result = (float) ((arg1)->m02);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m10_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m10 = arg2;
 }
 
 
@@ -746,6 +866,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m10_get(void * jar
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m11_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m11 = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m11_get(void * jarg1) {
   float jresult ;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -755,6 +885,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m11_get(void * jar
   result = (float) ((arg1)->m11);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m12_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m12 = arg2;
 }
 
 
@@ -770,6 +910,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m12_get(void * jar
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m20_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m20 = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m20_get(void * jarg1) {
   float jresult ;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -782,6 +932,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m20_get(void * jar
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m21_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m21 = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m21_get(void * jarg1) {
   float jresult ;
   PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
@@ -791,6 +951,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m21_get(void * jar
   result = (float) ((arg1)->m21);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMMatrix3f_m22_set(void * jarg1, float jarg2) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->m22 = arg2;
 }
 
 
@@ -824,6 +994,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMMatrix3f(void * jarg1
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_w_set(void * jarg1, float jarg2) {
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMQuatf *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->w = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_w_get(void * jarg1) {
   float jresult ;
   PSMQuatf *arg1 = (PSMQuatf *) 0 ;
@@ -833,6 +1013,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_w_get(void * jarg1) {
   result = (float) ((arg1)->w);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_x_set(void * jarg1, float jarg2) {
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMQuatf *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->x = arg2;
 }
 
 
@@ -848,6 +1038,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_x_get(void * jarg1) {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_y_set(void * jarg1, float jarg2) {
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMQuatf *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->y = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_y_get(void * jarg1) {
   float jresult ;
   PSMQuatf *arg1 = (PSMQuatf *) 0 ;
@@ -857,6 +1057,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_y_get(void * jarg1) {
   result = (float) ((arg1)->y);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMQuatf_z_set(void * jarg1, float jarg2) {
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMQuatf *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->z = arg2;
 }
 
 
@@ -890,6 +1100,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMQuatf(void * jarg1) {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMPosef_Position_set(void * jarg1, void * jarg2) {
+  PSMPosef *arg1 = (PSMPosef *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMPosef *)jarg1; 
+  arg2 = (PSMVector3f *)jarg2; 
+  if (arg1) (arg1)->Position = *arg2;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMPosef_Position_get(void * jarg1) {
   void * jresult ;
   PSMPosef *arg1 = (PSMPosef *) 0 ;
@@ -899,6 +1119,16 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMPosef_Position_get(void * 
   result = (PSMVector3f *)& ((arg1)->Position);
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMPosef_Orientation_set(void * jarg1, void * jarg2) {
+  PSMPosef *arg1 = (PSMPosef *) 0 ;
+  PSMQuatf *arg2 = (PSMQuatf *) 0 ;
+  
+  arg1 = (PSMPosef *)jarg1; 
+  arg2 = (PSMQuatf *)jarg2; 
+  if (arg1) (arg1)->Orientation = *arg2;
 }
 
 
@@ -932,6 +1162,16 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMPosef(void * jarg1) {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_origin_set(void * jarg1, void * jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (PSMVector3f *)jarg2; 
+  if (arg1) (arg1)->origin = *arg2;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_origin_get(void * jarg1) {
   void * jresult ;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -941,6 +1181,16 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_origin_get(void * 
   result = (PSMVector3f *)& ((arg1)->origin);
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_forward_set(void * jarg1, void * jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (PSMVector3f *)jarg2; 
+  if (arg1) (arg1)->forward = *arg2;
 }
 
 
@@ -956,6 +1206,16 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_forward_get(void *
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_left_set(void * jarg1, void * jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (PSMVector3f *)jarg2; 
+  if (arg1) (arg1)->left = *arg2;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_left_get(void * jarg1) {
   void * jresult ;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -965,6 +1225,16 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_left_get(void * ja
   result = (PSMVector3f *)& ((arg1)->left);
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_up_set(void * jarg1, void * jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  PSMVector3f *arg2 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (PSMVector3f *)jarg2; 
+  if (arg1) (arg1)->up = *arg2;
 }
 
 
@@ -980,6 +1250,16 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_up_get(void * jarg
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_HFOV_set(void * jarg1, float jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->HFOV = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_HFOV_get(void * jarg1) {
   float jresult ;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -989,6 +1269,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_HFOV_get(void * jar
   result = (float) ((arg1)->HFOV);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_VFOV_set(void * jarg1, float jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->VFOV = arg2;
 }
 
 
@@ -1004,6 +1294,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_VFOV_get(void * jar
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_zNear_set(void * jarg1, float jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->zNear = arg2;
+}
+
+
 SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_zNear_get(void * jarg1) {
   float jresult ;
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
@@ -1013,6 +1313,16 @@ SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_zNear_get(void * ja
   result = (float) ((arg1)->zNear);
   jresult = result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSMFrustum_zFar_set(void * jarg1, float jarg2) {
+  PSMFrustum *arg1 = (PSMFrustum *) 0 ;
+  float arg2 ;
+  
+  arg1 = (PSMFrustum *)jarg1; 
+  arg2 = (float)jarg2; 
+  if (arg1) (arg1)->zFar = arg2;
 }
 
 
@@ -1042,252 +1352,6 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMFrustum(void * jarg1)
   PSMFrustum *arg1 = (PSMFrustum *) 0 ;
   
   arg1 = (PSMFrustum *)jarg1; 
-  free((char *) arg1);
-}
-
-
-SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_type_get(void * jarg1) {
-  int jresult ;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  PSMTrackingShapeType result;
-  
-  arg1 = (PSMTrackingProjection *)jarg1; 
-  result = (PSMTrackingShapeType) ((arg1)->shape_type);
-  jresult = (int)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  PSMTrackingProjection_shape *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection *)jarg1; 
-  result = (PSMTrackingProjection_shape *)& ((arg1)->shape);
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection() {
-  void * jresult ;
-  PSMTrackingProjection *result = 0 ;
-  
-  result = (PSMTrackingProjection *)calloc(1, sizeof(PSMTrackingProjection));
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection(void * jarg1) {
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  
-  arg1 = (PSMTrackingProjection *)jarg1; 
-  free((char *) arg1);
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  PSMTrackingProjection_shape_ellipse *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape *)jarg1; 
-  result = (PSMTrackingProjection_shape_ellipse *)& ((arg1)->ellipse);
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  PSMTrackingProjection_shape_lightbar *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape *)jarg1; 
-  result = (PSMTrackingProjection_shape_lightbar *)& ((arg1)->lightbar);
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  PSMTrackingProjection_shape_pointcloud *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape *)jarg1; 
-  result = (PSMTrackingProjection_shape_pointcloud *)& ((arg1)->pointcloud);
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape() {
-  void * jresult ;
-  PSMTrackingProjection_shape *result = 0 ;
-  
-  result = (PSMTrackingProjection_shape *)calloc(1, sizeof(PSMTrackingProjection_shape));
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape(void * jarg1) {
-  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape *)jarg1; 
-  free((char *) arg1);
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_points_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  PSMVector2f *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->points);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_point_count_get(void * jarg1) {
-  int jresult ;
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  int result;
-  
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
-  result = (int) ((arg1)->point_count);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_pointcloud() {
-  void * jresult ;
-  PSMTrackingProjection_shape_pointcloud *result = 0 ;
-  
-  result = (PSMTrackingProjection_shape_pointcloud *)calloc(1, sizeof(PSMTrackingProjection_shape_pointcloud));
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_pointcloud(void * jarg1) {
-  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
-  free((char *) arg1);
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_triangle_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  PSMVector2f *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->triangle);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_quad_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  PSMVector2f *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
-  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->quad);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_lightbar() {
-  void * jresult ;
-  PSMTrackingProjection_shape_lightbar *result = 0 ;
-  
-  result = (PSMTrackingProjection_shape_lightbar *)calloc(1, sizeof(PSMTrackingProjection_shape_lightbar));
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_lightbar(void * jarg1) {
-  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
-  free((char *) arg1);
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_center_get(void * jarg1) {
-  void * jresult ;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  PSMVector2f *result = 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
-  result = (PSMVector2f *)& ((arg1)->center);
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_x_extent_get(void * jarg1) {
-  float jresult ;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  float result;
-  
-  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
-  result = (float) ((arg1)->half_x_extent);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_y_extent_get(void * jarg1) {
-  float jresult ;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  float result;
-  
-  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
-  result = (float) ((arg1)->half_y_extent);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_angle_get(void * jarg1) {
-  float jresult ;
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  float result;
-  
-  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
-  result = (float) ((arg1)->angle);
-  jresult = result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_ellipse() {
-  void * jresult ;
-  PSMTrackingProjection_shape_ellipse *result = 0 ;
-  
-  result = (PSMTrackingProjection_shape_ellipse *)calloc(1, sizeof(PSMTrackingProjection_shape_ellipse));
-  jresult = (void *)result; 
-  return jresult;
-}
-
-
-SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_ellipse(void * jarg1) {
-  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
-  
-  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
   free((char *) arg1);
 }
 
@@ -2528,15 +2592,11 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_PSM_FrustumSetPose(void * jarg1
 }
 
 
-SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSM_TrackingProjectionGetArea(void * jarg1) {
-  float jresult ;
-  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
-  float result;
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_int_vector3_zero_set(void * jarg1) {
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
   
-  arg1 = (PSMTrackingProjection *)jarg1; 
-  result = (float)PSM_TrackingProjectionGetArea((PSMTrackingProjection const *)arg1);
-  jresult = result; 
-  return jresult;
+  arg1 = (PSMVector3i *)jarg1; 
+  k_psm_int_vector3_zero = (PSMVector3i const *)arg1;
 }
 
 
@@ -2550,6 +2610,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_int_vector3_zero_get() 
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_zero_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_float_vector3_zero = (PSMVector3f const *)arg1;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_zero_get() {
   void * jresult ;
   PSMVector3f *result = 0 ;
@@ -2557,6 +2625,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_zero_get(
   result = (PSMVector3f *)k_psm_float_vector3_zero;
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_int_vector3_one_set(void * jarg1) {
+  PSMVector3i *arg1 = (PSMVector3i *) 0 ;
+  
+  arg1 = (PSMVector3i *)jarg1; 
+  k_psm_int_vector3_one = (PSMVector3i const *)arg1;
 }
 
 
@@ -2570,6 +2646,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_int_vector3_one_get() {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_one_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_float_vector3_one = (PSMVector3f const *)arg1;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_one_get() {
   void * jresult ;
   PSMVector3f *result = 0 ;
@@ -2577,6 +2661,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_one_get()
   result = (PSMVector3f *)k_psm_float_vector3_one;
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_i_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_float_vector3_i = (PSMVector3f const *)arg1;
 }
 
 
@@ -2590,6 +2682,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_i_get() {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_j_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_float_vector3_j = (PSMVector3f const *)arg1;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_j_get() {
   void * jresult ;
   PSMVector3f *result = 0 ;
@@ -2597,6 +2697,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_j_get() {
   result = (PSMVector3f *)k_psm_float_vector3_j;
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_k_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_float_vector3_k = (PSMVector3f const *)arg1;
 }
 
 
@@ -2610,6 +2718,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_float_vector3_k_get() {
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_position_origin_set(void * jarg1) {
+  PSMVector3f *arg1 = (PSMVector3f *) 0 ;
+  
+  arg1 = (PSMVector3f *)jarg1; 
+  k_psm_position_origin = (PSMVector3f const *)arg1;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_position_origin_get() {
   void * jresult ;
   PSMVector3f *result = 0 ;
@@ -2617,6 +2733,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_position_origin_get() {
   result = (PSMVector3f *)k_psm_position_origin;
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_quaternion_identity_set(void * jarg1) {
+  PSMQuatf *arg1 = (PSMQuatf *) 0 ;
+  
+  arg1 = (PSMQuatf *)jarg1; 
+  k_psm_quaternion_identity = (PSMQuatf const *)arg1;
 }
 
 
@@ -2630,6 +2754,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_quaternion_identity_get
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_matrix_identity_set(void * jarg1) {
+  PSMMatrix3f *arg1 = (PSMMatrix3f *) 0 ;
+  
+  arg1 = (PSMMatrix3f *)jarg1; 
+  k_psm_matrix_identity = (PSMMatrix3f const *)arg1;
+}
+
+
 SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_matrix_identity_get() {
   void * jresult ;
   PSMMatrix3f *result = 0 ;
@@ -2637,6 +2769,14 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_k_psm_matrix_identity_get() {
   result = (PSMMatrix3f *)k_psm_matrix_identity;
   jresult = (void *)result; 
   return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_k_psm_pose_identity_set(void * jarg1) {
+  PSMPosef *arg1 = (PSMPosef *) 0 ;
+  
+  arg1 = (PSMPosef *)jarg1; 
+  k_psm_pose_identity = (PSMPosef const *)arg1;
 }
 
 
@@ -3064,6 +3204,252 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMPSMoveCalibratedSenso
   PSMPSMoveCalibratedSensorData *arg1 = (PSMPSMoveCalibratedSensorData *) 0 ;
   
   arg1 = (PSMPSMoveCalibratedSensorData *)jarg1; 
+  free((char *) arg1);
+}
+
+
+SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_type_get(void * jarg1) {
+  int jresult ;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  PSMTrackingShapeType result;
+  
+  arg1 = (PSMTrackingProjection *)jarg1; 
+  result = (PSMTrackingShapeType) ((arg1)->shape_type);
+  jresult = (int)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  PSMTrackingProjection_shape *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection *)jarg1; 
+  result = (PSMTrackingProjection_shape *)& ((arg1)->shape);
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection() {
+  void * jresult ;
+  PSMTrackingProjection *result = 0 ;
+  
+  result = (PSMTrackingProjection *)calloc(1, sizeof(PSMTrackingProjection));
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection(void * jarg1) {
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  
+  arg1 = (PSMTrackingProjection *)jarg1; 
+  free((char *) arg1);
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  PSMTrackingProjection_shape_ellipse *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape *)jarg1; 
+  result = (PSMTrackingProjection_shape_ellipse *)& ((arg1)->ellipse);
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  PSMTrackingProjection_shape_lightbar *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape *)jarg1; 
+  result = (PSMTrackingProjection_shape_lightbar *)& ((arg1)->lightbar);
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  PSMTrackingProjection_shape_pointcloud *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape *)jarg1; 
+  result = (PSMTrackingProjection_shape_pointcloud *)& ((arg1)->pointcloud);
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape() {
+  void * jresult ;
+  PSMTrackingProjection_shape *result = 0 ;
+  
+  result = (PSMTrackingProjection_shape *)calloc(1, sizeof(PSMTrackingProjection_shape));
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape(void * jarg1) {
+  PSMTrackingProjection_shape *arg1 = (PSMTrackingProjection_shape *) 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape *)jarg1; 
+  free((char *) arg1);
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_points_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  PSMVector2f *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->points);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_pointcloud_point_count_get(void * jarg1) {
+  int jresult ;
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  int result;
+  
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
+  result = (int) ((arg1)->point_count);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_pointcloud() {
+  void * jresult ;
+  PSMTrackingProjection_shape_pointcloud *result = 0 ;
+  
+  result = (PSMTrackingProjection_shape_pointcloud *)calloc(1, sizeof(PSMTrackingProjection_shape_pointcloud));
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_pointcloud(void * jarg1) {
+  PSMTrackingProjection_shape_pointcloud *arg1 = (PSMTrackingProjection_shape_pointcloud *) 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_pointcloud *)jarg1; 
+  free((char *) arg1);
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_triangle_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  PSMVector2f *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->triangle);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_lightbar_quad_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  PSMVector2f *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
+  result = (PSMVector2f *)(PSMVector2f *) ((arg1)->quad);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_lightbar() {
+  void * jresult ;
+  PSMTrackingProjection_shape_lightbar *result = 0 ;
+  
+  result = (PSMTrackingProjection_shape_lightbar *)calloc(1, sizeof(PSMTrackingProjection_shape_lightbar));
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_lightbar(void * jarg1) {
+  PSMTrackingProjection_shape_lightbar *arg1 = (PSMTrackingProjection_shape_lightbar *) 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_lightbar *)jarg1; 
+  free((char *) arg1);
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_center_get(void * jarg1) {
+  void * jresult ;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  PSMVector2f *result = 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
+  result = (PSMVector2f *)& ((arg1)->center);
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_x_extent_get(void * jarg1) {
+  float jresult ;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  float result;
+  
+  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
+  result = (float) ((arg1)->half_x_extent);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_half_y_extent_get(void * jarg1) {
+  float jresult ;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  float result;
+  
+  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
+  result = (float) ((arg1)->half_y_extent);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSMTrackingProjection_shape_ellipse_angle_get(void * jarg1) {
+  float jresult ;
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  float result;
+  
+  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
+  result = (float) ((arg1)->angle);
+  jresult = result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_new_PSMTrackingProjection_shape_ellipse() {
+  void * jresult ;
+  PSMTrackingProjection_shape_ellipse *result = 0 ;
+  
+  result = (PSMTrackingProjection_shape_ellipse *)calloc(1, sizeof(PSMTrackingProjection_shape_ellipse));
+  jresult = (void *)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMTrackingProjection_shape_ellipse(void * jarg1) {
+  PSMTrackingProjection_shape_ellipse *arg1 = (PSMTrackingProjection_shape_ellipse *) 0 ;
+  
+  arg1 = (PSMTrackingProjection_shape_ellipse *)jarg1; 
   free((char *) arg1);
 }
 
@@ -6608,15 +6994,13 @@ SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_GetServiceVersionStringAsync
 }
 
 
-SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_PollNextMessage(void * jarg1, unsigned long jarg2) {
+SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_PollNextMessage(void * jarg1) {
   int jresult ;
   PSMMessage *arg1 = (PSMMessage *) 0 ;
-  size_t arg2 ;
   PSMResult result;
   
   arg1 = (PSMMessage *)jarg1; 
-  arg2 = (size_t)jarg2; 
-  result = (PSMResult)PSM_PollNextMessage(arg1,arg2);
+  result = (PSMResult)PSM_PollNextMessage(arg1);
   jresult = (int)result; 
   return jresult;
 }
@@ -6636,17 +7020,17 @@ SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_SendOpaqueRequest(void * jar
 }
 
 
-SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_RegisterSTDCALLCallback(int jarg1, void * jarg2, void * jarg3) {
+SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_RegisterCallback(int jarg1, void * jarg2, void * jarg3) {
   int jresult ;
   PSMRequestID arg1 ;
-  PSMResponseCallback_STDCALL arg2 = (PSMResponseCallback_STDCALL) 0 ;
+  PSMResponseCallback_CDECL arg2 = (PSMResponseCallback_CDECL) 0 ;
   void *arg3 = (void *) 0 ;
   PSMResult result;
   
   arg1 = (PSMRequestID)jarg1; 
-  arg2 = (PSMResponseCallback_STDCALL)jarg2; 
+  arg2 = (PSMResponseCallback_CDECL)jarg2; 
   arg3 = jarg3; 
-  result = (PSMResult)PSM_RegisterSTDCALLCallback(arg1,arg2,arg3);
+  result = (PSMResult)PSM_RegisterCallback(arg1,arg2,arg3);
   jresult = (int)result; 
   return jresult;
 }
@@ -7622,6 +8006,18 @@ SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_SetHmdDataStreamTrackerIndex
   arg3 = (PSMRequestID *)jarg3; 
   result = (PSMResult)PSM_SetHmdDataStreamTrackerIndexAsync(arg1,arg2,arg3);
   jresult = (int)result; 
+  return jresult;
+}
+
+
+SWIGEXPORT float SWIGSTDCALL CSharp_PSMoveService_PSM_TrackingProjectionGetArea(void * jarg1) {
+  float jresult ;
+  PSMTrackingProjection *arg1 = (PSMTrackingProjection *) 0 ;
+  float result;
+  
+  arg1 = (PSMTrackingProjection *)jarg1; 
+  result = (float)PSM_TrackingProjectionGetArea((PSMTrackingProjection const *)arg1);
+  jresult = result; 
   return jresult;
 }
 

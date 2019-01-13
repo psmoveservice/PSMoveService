@@ -366,7 +366,7 @@ void PSMoveClient::update()
 void PSMoveClient::process_messages()
 {
     PSMMessage message;
-    while(poll_next_message(&message, sizeof(message)))
+    while(poll_next_message(&message))
     {
         switch(message.payload_type)
         {
@@ -588,7 +588,7 @@ static void processDualShock4RecenterAction(PSMController *controller)
 	}
 }
 
-bool PSMoveClient::poll_next_message(PSMMessage *message, size_t message_size)
+bool PSMoveClient::poll_next_message(PSMMessage *message)
 {
     bool bHasMessage = false;
 
@@ -596,7 +596,6 @@ bool PSMoveClient::poll_next_message(PSMMessage *message, size_t message_size)
     {
         const PSMMessage &first = m_message_queue.front();
 
-        assert(sizeof(PSMMessage) == message_size);
         assert(message != nullptr);
         memcpy(message, &first, sizeof(PSMMessage));
 
@@ -2299,7 +2298,7 @@ void PSMoveClient::enqueue_event_message(
     m_message_queue.push_back(message);
 }
 
-bool PSMoveClient::register_cdecl_callback(
+bool PSMoveClient::register_callback(
     PSMRequestID request_id,
     PSMResponseCallback_CDECL callback,
     void *callback_userdata)
@@ -2313,33 +2312,7 @@ bool PSMoveClient::register_cdecl_callback(
         assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
         memset(&pendingRequest, 0, sizeof(PendingRequest));
         pendingRequest.request_id = request_id;
-        pendingRequest.response_callback.cdecl_callback = callback;
-		pendingRequest.response_callback_type= PendingRequest::_callback_type_cdecl;
-        pendingRequest.response_userdata = callback_userdata;
-
-        m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
-        bSuccess = true;
-    }
-
-    return bSuccess;
-}
-
-bool PSMoveClient::register_stdcall_callback(
-	PSMRequestID request_id,
-	PSMResponseCallback_STDCALL callback,
-	void *callback_userdata)
-{
-    bool bSuccess = false;
-
-    if (request_id != PSM_INVALID_REQUEST_ID)
-    {
-        PendingRequest pendingRequest;
-
-        assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
-        memset(&pendingRequest, 0, sizeof(PendingRequest));
-        pendingRequest.request_id = request_id;
-        pendingRequest.response_callback.stdcall_callback = callback;
-		pendingRequest.response_callback_type= PendingRequest::_callback_type_stdcall;
+        pendingRequest.response_callback = callback;
         pendingRequest.response_userdata = callback_userdata;
 
         m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
@@ -2363,23 +2336,11 @@ bool PSMoveClient::execute_callback(
         {
             const PendingRequest &pendingRequest = iter->second;
 
-            if (pendingRequest.response_callback_type != PendingRequest::_callback_type_INVALID)
+            if (pendingRequest.response_callback != nullptr)
             {
-				switch (pendingRequest.response_callback_type)
-				{
-				case PendingRequest::_callback_type_cdecl:
-					pendingRequest.response_callback.cdecl_callback(
-						response_message,
-						pendingRequest.response_userdata);
-					break;
-				case PendingRequest::_callback_type_stdcall:
-					pendingRequest.response_callback.stdcall_callback(
-						response_message,
-						pendingRequest.response_userdata);
-					break;
-				default:
-					break;
-				}
+                pendingRequest.response_callback(
+                    response_message,
+                    pendingRequest.response_userdata);
 
                 bExecutedCallback = true;
             }
@@ -2417,7 +2378,7 @@ bool PSMoveClient::cancel_callback(PSMRequestID request_id)
             const PendingRequest &pendingRequest = iter->second;
                 
             // Notify the response callback that the request was canceled
-            if (pendingRequest.response_callback_type != PendingRequest::_callback_type_INVALID)
+            if (pendingRequest.response_callback != nullptr)
             {
                 PSMResponseMessage response;
                 memset(&response, 0, sizeof(PSMResponseMessage));
@@ -2425,21 +2386,9 @@ bool PSMoveClient::cancel_callback(PSMRequestID request_id)
                 response.request_id= request_id;
                 response.payload_type= PSMResponsePayloadType::_responsePayloadType_HmdList;
                 
-				switch (pendingRequest.response_callback_type)
-				{
-				case PendingRequest::_callback_type_cdecl:
-					pendingRequest.response_callback.cdecl_callback(
-						&response,
-						pendingRequest.response_userdata);
-					break;
-				case PendingRequest::_callback_type_stdcall:
-					pendingRequest.response_callback.stdcall_callback(
-						&response,
-						pendingRequest.response_userdata);
-					break;
-				default:
-					break;
-				}
+                pendingRequest.response_callback(
+                    &response,
+                    pendingRequest.response_userdata);
             }
             m_pending_request_map.erase(iter);
             bSuccess = true;

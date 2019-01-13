@@ -115,12 +115,14 @@ class PSMVector2f(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMVector2f, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["x"] = _PSMoveClient.PSMVector2f_x_set
     __swig_getmethods__["x"] = _PSMoveClient.PSMVector2f_x_get
     if _newclass:
-        x = _swig_property(_PSMoveClient.PSMVector2f_x_get)
+        x = _swig_property(_PSMoveClient.PSMVector2f_x_get, _PSMoveClient.PSMVector2f_x_set)
+    __swig_setmethods__["y"] = _PSMoveClient.PSMVector2f_y_set
     __swig_getmethods__["y"] = _PSMoveClient.PSMVector2f_y_get
     if _newclass:
-        y = _swig_property(_PSMoveClient.PSMVector2f_y_get)
+        y = _swig_property(_PSMoveClient.PSMVector2f_y_get, _PSMoveClient.PSMVector2f_y_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMVector2f()
@@ -139,15 +141,18 @@ class PSMVector3f(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMVector3f, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["x"] = _PSMoveClient.PSMVector3f_x_set
     __swig_getmethods__["x"] = _PSMoveClient.PSMVector3f_x_get
     if _newclass:
-        x = _swig_property(_PSMoveClient.PSMVector3f_x_get)
+        x = _swig_property(_PSMoveClient.PSMVector3f_x_get, _PSMoveClient.PSMVector3f_x_set)
+    __swig_setmethods__["y"] = _PSMoveClient.PSMVector3f_y_set
     __swig_getmethods__["y"] = _PSMoveClient.PSMVector3f_y_get
     if _newclass:
-        y = _swig_property(_PSMoveClient.PSMVector3f_y_get)
+        y = _swig_property(_PSMoveClient.PSMVector3f_y_get, _PSMoveClient.PSMVector3f_y_set)
+    __swig_setmethods__["z"] = _PSMoveClient.PSMVector3f_z_set
     __swig_getmethods__["z"] = _PSMoveClient.PSMVector3f_z_get
     if _newclass:
-        z = _swig_property(_PSMoveClient.PSMVector3f_z_get)
+        z = _swig_property(_PSMoveClient.PSMVector3f_z_get, _PSMoveClient.PSMVector3f_z_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMVector3f()
@@ -166,15 +171,18 @@ class PSMVector3i(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMVector3i, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["x"] = _PSMoveClient.PSMVector3i_x_set
     __swig_getmethods__["x"] = _PSMoveClient.PSMVector3i_x_get
     if _newclass:
-        x = _swig_property(_PSMoveClient.PSMVector3i_x_get)
+        x = _swig_property(_PSMoveClient.PSMVector3i_x_get, _PSMoveClient.PSMVector3i_x_set)
+    __swig_setmethods__["y"] = _PSMoveClient.PSMVector3i_y_set
     __swig_getmethods__["y"] = _PSMoveClient.PSMVector3i_y_get
     if _newclass:
-        y = _swig_property(_PSMoveClient.PSMVector3i_y_get)
+        y = _swig_property(_PSMoveClient.PSMVector3i_y_get, _PSMoveClient.PSMVector3i_y_set)
+    __swig_setmethods__["z"] = _PSMoveClient.PSMVector3i_z_set
     __swig_getmethods__["z"] = _PSMoveClient.PSMVector3i_z_get
     if _newclass:
-        z = _swig_property(_PSMoveClient.PSMVector3i_z_get)
+        z = _swig_property(_PSMoveClient.PSMVector3i_z_get, _PSMoveClient.PSMVector3i_z_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMVector3i()
@@ -193,33 +201,42 @@ class PSMMatrix3f(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMMatrix3f, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["m00"] = _PSMoveClient.PSMMatrix3f_m00_set
     __swig_getmethods__["m00"] = _PSMoveClient.PSMMatrix3f_m00_get
     if _newclass:
-        m00 = _swig_property(_PSMoveClient.PSMMatrix3f_m00_get)
+        m00 = _swig_property(_PSMoveClient.PSMMatrix3f_m00_get, _PSMoveClient.PSMMatrix3f_m00_set)
+    __swig_setmethods__["m01"] = _PSMoveClient.PSMMatrix3f_m01_set
     __swig_getmethods__["m01"] = _PSMoveClient.PSMMatrix3f_m01_get
     if _newclass:
-        m01 = _swig_property(_PSMoveClient.PSMMatrix3f_m01_get)
+        m01 = _swig_property(_PSMoveClient.PSMMatrix3f_m01_get, _PSMoveClient.PSMMatrix3f_m01_set)
+    __swig_setmethods__["m02"] = _PSMoveClient.PSMMatrix3f_m02_set
     __swig_getmethods__["m02"] = _PSMoveClient.PSMMatrix3f_m02_get
     if _newclass:
-        m02 = _swig_property(_PSMoveClient.PSMMatrix3f_m02_get)
+        m02 = _swig_property(_PSMoveClient.PSMMatrix3f_m02_get, _PSMoveClient.PSMMatrix3f_m02_set)
+    __swig_setmethods__["m10"] = _PSMoveClient.PSMMatrix3f_m10_set
     __swig_getmethods__["m10"] = _PSMoveClient.PSMMatrix3f_m10_get
     if _newclass:
-        m10 = _swig_property(_PSMoveClient.PSMMatrix3f_m10_get)
+        m10 = _swig_property(_PSMoveClient.PSMMatrix3f_m10_get, _PSMoveClient.PSMMatrix3f_m10_set)
+    __swig_setmethods__["m11"] = _PSMoveClient.PSMMatrix3f_m11_set
     __swig_getmethods__["m11"] = _PSMoveClient.PSMMatrix3f_m11_get
     if _newclass:
-        m11 = _swig_property(_PSMoveClient.PSMMatrix3f_m11_get)
+        m11 = _swig_property(_PSMoveClient.PSMMatrix3f_m11_get, _PSMoveClient.PSMMatrix3f_m11_set)
+    __swig_setmethods__["m12"] = _PSMoveClient.PSMMatrix3f_m12_set
     __swig_getmethods__["m12"] = _PSMoveClient.PSMMatrix3f_m12_get
     if _newclass:
-        m12 = _swig_property(_PSMoveClient.PSMMatrix3f_m12_get)
+        m12 = _swig_property(_PSMoveClient.PSMMatrix3f_m12_get, _PSMoveClient.PSMMatrix3f_m12_set)
+    __swig_setmethods__["m20"] = _PSMoveClient.PSMMatrix3f_m20_set
     __swig_getmethods__["m20"] = _PSMoveClient.PSMMatrix3f_m20_get
     if _newclass:
-        m20 = _swig_property(_PSMoveClient.PSMMatrix3f_m20_get)
+        m20 = _swig_property(_PSMoveClient.PSMMatrix3f_m20_get, _PSMoveClient.PSMMatrix3f_m20_set)
+    __swig_setmethods__["m21"] = _PSMoveClient.PSMMatrix3f_m21_set
     __swig_getmethods__["m21"] = _PSMoveClient.PSMMatrix3f_m21_get
     if _newclass:
-        m21 = _swig_property(_PSMoveClient.PSMMatrix3f_m21_get)
+        m21 = _swig_property(_PSMoveClient.PSMMatrix3f_m21_get, _PSMoveClient.PSMMatrix3f_m21_set)
+    __swig_setmethods__["m22"] = _PSMoveClient.PSMMatrix3f_m22_set
     __swig_getmethods__["m22"] = _PSMoveClient.PSMMatrix3f_m22_get
     if _newclass:
-        m22 = _swig_property(_PSMoveClient.PSMMatrix3f_m22_get)
+        m22 = _swig_property(_PSMoveClient.PSMMatrix3f_m22_get, _PSMoveClient.PSMMatrix3f_m22_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMMatrix3f()
@@ -238,18 +255,22 @@ class PSMQuatf(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMQuatf, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["w"] = _PSMoveClient.PSMQuatf_w_set
     __swig_getmethods__["w"] = _PSMoveClient.PSMQuatf_w_get
     if _newclass:
-        w = _swig_property(_PSMoveClient.PSMQuatf_w_get)
+        w = _swig_property(_PSMoveClient.PSMQuatf_w_get, _PSMoveClient.PSMQuatf_w_set)
+    __swig_setmethods__["x"] = _PSMoveClient.PSMQuatf_x_set
     __swig_getmethods__["x"] = _PSMoveClient.PSMQuatf_x_get
     if _newclass:
-        x = _swig_property(_PSMoveClient.PSMQuatf_x_get)
+        x = _swig_property(_PSMoveClient.PSMQuatf_x_get, _PSMoveClient.PSMQuatf_x_set)
+    __swig_setmethods__["y"] = _PSMoveClient.PSMQuatf_y_set
     __swig_getmethods__["y"] = _PSMoveClient.PSMQuatf_y_get
     if _newclass:
-        y = _swig_property(_PSMoveClient.PSMQuatf_y_get)
+        y = _swig_property(_PSMoveClient.PSMQuatf_y_get, _PSMoveClient.PSMQuatf_y_set)
+    __swig_setmethods__["z"] = _PSMoveClient.PSMQuatf_z_set
     __swig_getmethods__["z"] = _PSMoveClient.PSMQuatf_z_get
     if _newclass:
-        z = _swig_property(_PSMoveClient.PSMQuatf_z_get)
+        z = _swig_property(_PSMoveClient.PSMQuatf_z_get, _PSMoveClient.PSMQuatf_z_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMQuatf()
@@ -268,12 +289,14 @@ class PSMPosef(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMPosef, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["Position"] = _PSMoveClient.PSMPosef_Position_set
     __swig_getmethods__["Position"] = _PSMoveClient.PSMPosef_Position_get
     if _newclass:
-        Position = _swig_property(_PSMoveClient.PSMPosef_Position_get)
+        Position = _swig_property(_PSMoveClient.PSMPosef_Position_get, _PSMoveClient.PSMPosef_Position_set)
+    __swig_setmethods__["Orientation"] = _PSMoveClient.PSMPosef_Orientation_set
     __swig_getmethods__["Orientation"] = _PSMoveClient.PSMPosef_Orientation_get
     if _newclass:
-        Orientation = _swig_property(_PSMoveClient.PSMPosef_Orientation_get)
+        Orientation = _swig_property(_PSMoveClient.PSMPosef_Orientation_get, _PSMoveClient.PSMPosef_Orientation_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMPosef()
@@ -292,30 +315,38 @@ class PSMFrustum(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, PSMFrustum, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["origin"] = _PSMoveClient.PSMFrustum_origin_set
     __swig_getmethods__["origin"] = _PSMoveClient.PSMFrustum_origin_get
     if _newclass:
-        origin = _swig_property(_PSMoveClient.PSMFrustum_origin_get)
+        origin = _swig_property(_PSMoveClient.PSMFrustum_origin_get, _PSMoveClient.PSMFrustum_origin_set)
+    __swig_setmethods__["forward"] = _PSMoveClient.PSMFrustum_forward_set
     __swig_getmethods__["forward"] = _PSMoveClient.PSMFrustum_forward_get
     if _newclass:
-        forward = _swig_property(_PSMoveClient.PSMFrustum_forward_get)
+        forward = _swig_property(_PSMoveClient.PSMFrustum_forward_get, _PSMoveClient.PSMFrustum_forward_set)
+    __swig_setmethods__["left"] = _PSMoveClient.PSMFrustum_left_set
     __swig_getmethods__["left"] = _PSMoveClient.PSMFrustum_left_get
     if _newclass:
-        left = _swig_property(_PSMoveClient.PSMFrustum_left_get)
+        left = _swig_property(_PSMoveClient.PSMFrustum_left_get, _PSMoveClient.PSMFrustum_left_set)
+    __swig_setmethods__["up"] = _PSMoveClient.PSMFrustum_up_set
     __swig_getmethods__["up"] = _PSMoveClient.PSMFrustum_up_get
     if _newclass:
-        up = _swig_property(_PSMoveClient.PSMFrustum_up_get)
+        up = _swig_property(_PSMoveClient.PSMFrustum_up_get, _PSMoveClient.PSMFrustum_up_set)
+    __swig_setmethods__["HFOV"] = _PSMoveClient.PSMFrustum_HFOV_set
     __swig_getmethods__["HFOV"] = _PSMoveClient.PSMFrustum_HFOV_get
     if _newclass:
-        HFOV = _swig_property(_PSMoveClient.PSMFrustum_HFOV_get)
+        HFOV = _swig_property(_PSMoveClient.PSMFrustum_HFOV_get, _PSMoveClient.PSMFrustum_HFOV_set)
+    __swig_setmethods__["VFOV"] = _PSMoveClient.PSMFrustum_VFOV_set
     __swig_getmethods__["VFOV"] = _PSMoveClient.PSMFrustum_VFOV_get
     if _newclass:
-        VFOV = _swig_property(_PSMoveClient.PSMFrustum_VFOV_get)
+        VFOV = _swig_property(_PSMoveClient.PSMFrustum_VFOV_get, _PSMoveClient.PSMFrustum_VFOV_set)
+    __swig_setmethods__["zNear"] = _PSMoveClient.PSMFrustum_zNear_set
     __swig_getmethods__["zNear"] = _PSMoveClient.PSMFrustum_zNear_get
     if _newclass:
-        zNear = _swig_property(_PSMoveClient.PSMFrustum_zNear_get)
+        zNear = _swig_property(_PSMoveClient.PSMFrustum_zNear_get, _PSMoveClient.PSMFrustum_zNear_set)
+    __swig_setmethods__["zFar"] = _PSMoveClient.PSMFrustum_zFar_set
     __swig_getmethods__["zFar"] = _PSMoveClient.PSMFrustum_zFar_get
     if _newclass:
-        zFar = _swig_property(_PSMoveClient.PSMFrustum_zFar_get)
+        zFar = _swig_property(_PSMoveClient.PSMFrustum_zFar_get, _PSMoveClient.PSMFrustum_zFar_set)
 
     def __init__(self):
         this = _PSMoveClient.new_PSMFrustum()
@@ -327,139 +358,6 @@ class PSMFrustum(_object):
     __del__ = lambda self: None
 PSMFrustum_swigregister = _PSMoveClient.PSMFrustum_swigregister
 PSMFrustum_swigregister(PSMFrustum)
-
-PSMShape_INVALID_PROJECTION = _PSMoveClient.PSMShape_INVALID_PROJECTION
-PSMShape_Ellipse = _PSMoveClient.PSMShape_Ellipse
-PSMShape_LightBar = _PSMoveClient.PSMShape_LightBar
-PSMShape_PointCloud = _PSMoveClient.PSMShape_PointCloud
-class PSMTrackingProjection(_object):
-    __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection, name, value)
-    __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection, name)
-    __repr__ = _swig_repr
-    __swig_getmethods__["shape_type"] = _PSMoveClient.PSMTrackingProjection_shape_type_get
-    if _newclass:
-        shape_type = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_type_get)
-    __swig_getmethods__["shape"] = _PSMoveClient.PSMTrackingProjection_shape_get
-    if _newclass:
-        shape = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_get)
-
-    def __init__(self):
-        this = _PSMoveClient.new_PSMTrackingProjection()
-        try:
-            self.this.append(this)
-        except __builtin__.Exception:
-            self.this = this
-    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection
-    __del__ = lambda self: None
-PSMTrackingProjection_swigregister = _PSMoveClient.PSMTrackingProjection_swigregister
-PSMTrackingProjection_swigregister(PSMTrackingProjection)
-
-class PSMTrackingProjection_shape(_object):
-    __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape, name, value)
-    __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape, name)
-    __repr__ = _swig_repr
-    __swig_getmethods__["ellipse"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_get
-    if _newclass:
-        ellipse = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_get)
-    __swig_getmethods__["lightbar"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_get
-    if _newclass:
-        lightbar = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_get)
-    __swig_getmethods__["pointcloud"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_get
-    if _newclass:
-        pointcloud = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_get)
-
-    def __init__(self):
-        this = _PSMoveClient.new_PSMTrackingProjection_shape()
-        try:
-            self.this.append(this)
-        except __builtin__.Exception:
-            self.this = this
-    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape
-    __del__ = lambda self: None
-PSMTrackingProjection_shape_swigregister = _PSMoveClient.PSMTrackingProjection_shape_swigregister
-PSMTrackingProjection_shape_swigregister(PSMTrackingProjection_shape)
-
-class PSMTrackingProjection_shape_pointcloud(_object):
-    __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_pointcloud, name, value)
-    __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_pointcloud, name)
-    __repr__ = _swig_repr
-    __swig_getmethods__["points"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_points_get
-    if _newclass:
-        points = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_points_get)
-    __swig_getmethods__["point_count"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_point_count_get
-    if _newclass:
-        point_count = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_point_count_get)
-
-    def __init__(self):
-        this = _PSMoveClient.new_PSMTrackingProjection_shape_pointcloud()
-        try:
-            self.this.append(this)
-        except __builtin__.Exception:
-            self.this = this
-    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_pointcloud
-    __del__ = lambda self: None
-PSMTrackingProjection_shape_pointcloud_swigregister = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_swigregister
-PSMTrackingProjection_shape_pointcloud_swigregister(PSMTrackingProjection_shape_pointcloud)
-
-class PSMTrackingProjection_shape_lightbar(_object):
-    __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_lightbar, name, value)
-    __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_lightbar, name)
-    __repr__ = _swig_repr
-    __swig_getmethods__["triangle"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_triangle_get
-    if _newclass:
-        triangle = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_triangle_get)
-    __swig_getmethods__["quad"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_quad_get
-    if _newclass:
-        quad = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_quad_get)
-
-    def __init__(self):
-        this = _PSMoveClient.new_PSMTrackingProjection_shape_lightbar()
-        try:
-            self.this.append(this)
-        except __builtin__.Exception:
-            self.this = this
-    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_lightbar
-    __del__ = lambda self: None
-PSMTrackingProjection_shape_lightbar_swigregister = _PSMoveClient.PSMTrackingProjection_shape_lightbar_swigregister
-PSMTrackingProjection_shape_lightbar_swigregister(PSMTrackingProjection_shape_lightbar)
-
-class PSMTrackingProjection_shape_ellipse(_object):
-    __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_ellipse, name, value)
-    __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_ellipse, name)
-    __repr__ = _swig_repr
-    __swig_getmethods__["center"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_center_get
-    if _newclass:
-        center = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_center_get)
-    __swig_getmethods__["half_x_extent"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_half_x_extent_get
-    if _newclass:
-        half_x_extent = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_half_x_extent_get)
-    __swig_getmethods__["half_y_extent"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_half_y_extent_get
-    if _newclass:
-        half_y_extent = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_half_y_extent_get)
-    __swig_getmethods__["angle"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_angle_get
-    if _newclass:
-        angle = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_angle_get)
-
-    def __init__(self):
-        this = _PSMoveClient.new_PSMTrackingProjection_shape_ellipse()
-        try:
-            self.this.append(this)
-        except __builtin__.Exception:
-            self.this = this
-    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_ellipse
-    __del__ = lambda self: None
-PSMTrackingProjection_shape_ellipse_swigregister = _PSMoveClient.PSMTrackingProjection_shape_ellipse_swigregister
-PSMTrackingProjection_shape_ellipse_swigregister(PSMTrackingProjection_shape_ellipse)
 
 
 def PSM_Vector2fAdd(a, b):
@@ -753,10 +651,6 @@ PSM_PosefInverseTransformPoint = _PSMoveClient.PSM_PosefInverseTransformPoint
 def PSM_FrustumSetPose(frustum, pose):
     return _PSMoveClient.PSM_FrustumSetPose(frustum, pose)
 PSM_FrustumSetPose = _PSMoveClient.PSM_FrustumSetPose
-
-def PSM_TrackingProjectionGetArea(proj):
-    return _PSMoveClient.PSM_TrackingProjectionGetArea(proj)
-PSM_TrackingProjectionGetArea = _PSMoveClient.PSM_TrackingProjectionGetArea
 PSMResult_Error = _PSMoveClient.PSMResult_Error
 PSMResult_Success = _PSMoveClient.PSMResult_Success
 PSMResult_Timeout = _PSMoveClient.PSMResult_Timeout
@@ -874,17 +768,6 @@ class PSMClientControllerInfo(_object):
 PSMClientControllerInfo_swigregister = _PSMoveClient.PSMClientControllerInfo_swigregister
 PSMClientControllerInfo_swigregister(PSMClientControllerInfo)
 cvar = _PSMoveClient.cvar
-k_psm_int_vector3_zero = cvar.k_psm_int_vector3_zero
-k_psm_float_vector3_zero = cvar.k_psm_float_vector3_zero
-k_psm_int_vector3_one = cvar.k_psm_int_vector3_one
-k_psm_float_vector3_one = cvar.k_psm_float_vector3_one
-k_psm_float_vector3_i = cvar.k_psm_float_vector3_i
-k_psm_float_vector3_j = cvar.k_psm_float_vector3_j
-k_psm_float_vector3_k = cvar.k_psm_float_vector3_k
-k_psm_position_origin = cvar.k_psm_position_origin
-k_psm_quaternion_identity = cvar.k_psm_quaternion_identity
-k_psm_matrix_identity = cvar.k_psm_matrix_identity
-k_psm_pose_identity = cvar.k_psm_pose_identity
 PSM_INVALID_REQUEST_ID = cvar.PSM_INVALID_REQUEST_ID
 
 class PSMPhysicsData(_object):
@@ -979,6 +862,139 @@ class PSMPSMoveCalibratedSensorData(_object):
     __del__ = lambda self: None
 PSMPSMoveCalibratedSensorData_swigregister = _PSMoveClient.PSMPSMoveCalibratedSensorData_swigregister
 PSMPSMoveCalibratedSensorData_swigregister(PSMPSMoveCalibratedSensorData)
+
+PSMShape_INVALID_PROJECTION = _PSMoveClient.PSMShape_INVALID_PROJECTION
+PSMShape_Ellipse = _PSMoveClient.PSMShape_Ellipse
+PSMShape_LightBar = _PSMoveClient.PSMShape_LightBar
+PSMShape_PointCloud = _PSMoveClient.PSMShape_PointCloud
+class PSMTrackingProjection(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["shape_type"] = _PSMoveClient.PSMTrackingProjection_shape_type_get
+    if _newclass:
+        shape_type = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_type_get)
+    __swig_getmethods__["shape"] = _PSMoveClient.PSMTrackingProjection_shape_get
+    if _newclass:
+        shape = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_get)
+
+    def __init__(self):
+        this = _PSMoveClient.new_PSMTrackingProjection()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection
+    __del__ = lambda self: None
+PSMTrackingProjection_swigregister = _PSMoveClient.PSMTrackingProjection_swigregister
+PSMTrackingProjection_swigregister(PSMTrackingProjection)
+
+class PSMTrackingProjection_shape(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["ellipse"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_get
+    if _newclass:
+        ellipse = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_get)
+    __swig_getmethods__["lightbar"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_get
+    if _newclass:
+        lightbar = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_get)
+    __swig_getmethods__["pointcloud"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_get
+    if _newclass:
+        pointcloud = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_get)
+
+    def __init__(self):
+        this = _PSMoveClient.new_PSMTrackingProjection_shape()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape
+    __del__ = lambda self: None
+PSMTrackingProjection_shape_swigregister = _PSMoveClient.PSMTrackingProjection_shape_swigregister
+PSMTrackingProjection_shape_swigregister(PSMTrackingProjection_shape)
+
+class PSMTrackingProjection_shape_pointcloud(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_pointcloud, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_pointcloud, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["points"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_points_get
+    if _newclass:
+        points = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_points_get)
+    __swig_getmethods__["point_count"] = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_point_count_get
+    if _newclass:
+        point_count = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_pointcloud_point_count_get)
+
+    def __init__(self):
+        this = _PSMoveClient.new_PSMTrackingProjection_shape_pointcloud()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_pointcloud
+    __del__ = lambda self: None
+PSMTrackingProjection_shape_pointcloud_swigregister = _PSMoveClient.PSMTrackingProjection_shape_pointcloud_swigregister
+PSMTrackingProjection_shape_pointcloud_swigregister(PSMTrackingProjection_shape_pointcloud)
+
+class PSMTrackingProjection_shape_lightbar(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_lightbar, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_lightbar, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["triangle"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_triangle_get
+    if _newclass:
+        triangle = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_triangle_get)
+    __swig_getmethods__["quad"] = _PSMoveClient.PSMTrackingProjection_shape_lightbar_quad_get
+    if _newclass:
+        quad = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_lightbar_quad_get)
+
+    def __init__(self):
+        this = _PSMoveClient.new_PSMTrackingProjection_shape_lightbar()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_lightbar
+    __del__ = lambda self: None
+PSMTrackingProjection_shape_lightbar_swigregister = _PSMoveClient.PSMTrackingProjection_shape_lightbar_swigregister
+PSMTrackingProjection_shape_lightbar_swigregister(PSMTrackingProjection_shape_lightbar)
+
+class PSMTrackingProjection_shape_ellipse(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, PSMTrackingProjection_shape_ellipse, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, PSMTrackingProjection_shape_ellipse, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["center"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_center_get
+    if _newclass:
+        center = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_center_get)
+    __swig_getmethods__["half_x_extent"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_half_x_extent_get
+    if _newclass:
+        half_x_extent = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_half_x_extent_get)
+    __swig_getmethods__["half_y_extent"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_half_y_extent_get
+    if _newclass:
+        half_y_extent = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_half_y_extent_get)
+    __swig_getmethods__["angle"] = _PSMoveClient.PSMTrackingProjection_shape_ellipse_angle_get
+    if _newclass:
+        angle = _swig_property(_PSMoveClient.PSMTrackingProjection_shape_ellipse_angle_get)
+
+    def __init__(self):
+        this = _PSMoveClient.new_PSMTrackingProjection_shape_ellipse()
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+    __swig_destroy__ = _PSMoveClient.delete_PSMTrackingProjection_shape_ellipse
+    __del__ = lambda self: None
+PSMTrackingProjection_shape_ellipse_swigregister = _PSMoveClient.PSMTrackingProjection_shape_ellipse_swigregister
+PSMTrackingProjection_shape_ellipse_swigregister(PSMTrackingProjection_shape_ellipse)
 
 class PSMRawTrackerData(_object):
     __swig_setmethods__ = {}
@@ -2280,8 +2296,8 @@ def PSM_GetServiceVersionStringAsync(out_request_id):
     return _PSMoveClient.PSM_GetServiceVersionStringAsync(out_request_id)
 PSM_GetServiceVersionStringAsync = _PSMoveClient.PSM_GetServiceVersionStringAsync
 
-def PSM_PollNextMessage(out_message, message_size):
-    return _PSMoveClient.PSM_PollNextMessage(out_message, message_size)
+def PSM_PollNextMessage(out_message):
+    return _PSMoveClient.PSM_PollNextMessage(out_message)
 PSM_PollNextMessage = _PSMoveClient.PSM_PollNextMessage
 
 def PSM_SendOpaqueRequest(request_handle, out_request_id):
@@ -2291,10 +2307,6 @@ PSM_SendOpaqueRequest = _PSMoveClient.PSM_SendOpaqueRequest
 def PSM_RegisterCallback(request_id, callback, callback_userdata):
     return _PSMoveClient.PSM_RegisterCallback(request_id, callback, callback_userdata)
 PSM_RegisterCallback = _PSMoveClient.PSM_RegisterCallback
-
-def PSM_RegisterSTDCALLCallback(request_id, callback, callback_userdata):
-    return _PSMoveClient.PSM_RegisterSTDCALLCallback(request_id, callback, callback_userdata)
-PSM_RegisterSTDCALLCallback = _PSMoveClient.PSM_RegisterSTDCALLCallback
 
 def PSM_CancelCallback(request_id):
     return _PSMoveClient.PSM_CancelCallback(request_id)
@@ -2567,6 +2579,10 @@ PSM_StopHmdDataStreamAsync = _PSMoveClient.PSM_StopHmdDataStreamAsync
 def PSM_SetHmdDataStreamTrackerIndexAsync(hmd_id, tracker_id, out_request_id):
     return _PSMoveClient.PSM_SetHmdDataStreamTrackerIndexAsync(hmd_id, tracker_id, out_request_id)
 PSM_SetHmdDataStreamTrackerIndexAsync = _PSMoveClient.PSM_SetHmdDataStreamTrackerIndexAsync
+
+def PSM_TrackingProjectionGetArea(proj):
+    return _PSMoveClient.PSM_TrackingProjectionGetArea(proj)
+PSM_TrackingProjectionGetArea = _PSMoveClient.PSM_TrackingProjectionGetArea
 # This file is compatible with both classic and new-style classes.
 
 

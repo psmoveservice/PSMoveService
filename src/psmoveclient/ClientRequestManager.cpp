@@ -258,12 +258,12 @@ public:
 				controller_info.has_magnetometer= ControllerResponse.has_magnetometer();
 				controller_info.prediction_time= ControllerResponse.prediction_time();
 				controller_info.gamepad_index= ControllerResponse.gamepad_index();
-				strncpy(controller_info.controller_serial, ControllerResponse.device_path().c_str(), sizeof(controller_info.device_path));
+				strncpy(controller_info.controller_serial, ControllerResponse.device_serial().c_str(), sizeof(controller_info.controller_serial));
 				strncpy(controller_info.orientation_filter, ControllerResponse.orientation_filter().c_str(), sizeof(controller_info.orientation_filter));
 				strncpy(controller_info.position_filter, ControllerResponse.position_filter().c_str(), sizeof(controller_info.position_filter));
 				strncpy(controller_info.gyro_gain_setting, ControllerResponse.gyro_gain_setting().c_str(), sizeof(controller_info.gyro_gain_setting));
-				strncpy(controller_info.assigned_host_serial, ControllerResponse.assigned_host_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
-				strncpy(controller_info.parent_controller_serial, ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+				strncpy(controller_info.assigned_host_serial, ControllerResponse.assigned_host_serial().c_str(), sizeof(controller_info.assigned_host_serial));
+				strncpy(controller_info.parent_controller_serial, ControllerResponse.parent_controller_serial().c_str(), sizeof(controller_info.parent_controller_serial));
 
                 ++dest_controller_count;
             }
@@ -272,7 +272,7 @@ public:
         }
 
 		// Cache off the bluetooth host MAC address
-		strncpy(controller_list->host_serial, response_controller_list.host_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+		strncpy(controller_list->host_serial, response_controller_list.host_serial().c_str(), sizeof(controller_list->host_serial));
 
         // Record how many controllers we copied into the payload
         controller_list->count = dest_controller_count;

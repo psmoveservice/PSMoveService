@@ -41,6 +41,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m00 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m00_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m00_get(swigCPtr);
       return ret;
@@ -48,6 +51,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m01 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m01_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m01_get(swigCPtr);
       return ret;
@@ -55,6 +61,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m02 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m02_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m02_get(swigCPtr);
       return ret;
@@ -62,6 +71,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m10 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m10_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m10_get(swigCPtr);
       return ret;
@@ -69,6 +81,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m11 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m11_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m11_get(swigCPtr);
       return ret;
@@ -76,6 +91,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m12 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m12_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m12_get(swigCPtr);
       return ret;
@@ -83,6 +101,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m20 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m20_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m20_get(swigCPtr);
       return ret;
@@ -90,6 +111,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m21 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m21_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m21_get(swigCPtr);
       return ret;
@@ -97,6 +121,9 @@ public class PSMMatrix3f : global::System.IDisposable {
   }
 
   public float m22 {
+    set {
+      PSMoveClientPINVOKE.PSMMatrix3f_m22_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMMatrix3f_m22_get(swigCPtr);
       return ret;

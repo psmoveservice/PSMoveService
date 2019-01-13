@@ -41,6 +41,9 @@ public class PSMVector3i : global::System.IDisposable {
   }
 
   public int x {
+    set {
+      PSMoveClientPINVOKE.PSMVector3i_x_set(swigCPtr, value);
+    } 
     get {
       int ret = PSMoveClientPINVOKE.PSMVector3i_x_get(swigCPtr);
       return ret;
@@ -48,6 +51,9 @@ public class PSMVector3i : global::System.IDisposable {
   }
 
   public int y {
+    set {
+      PSMoveClientPINVOKE.PSMVector3i_y_set(swigCPtr, value);
+    } 
     get {
       int ret = PSMoveClientPINVOKE.PSMVector3i_y_get(swigCPtr);
       return ret;
@@ -55,6 +61,9 @@ public class PSMVector3i : global::System.IDisposable {
   }
 
   public int z {
+    set {
+      PSMoveClientPINVOKE.PSMVector3i_z_set(swigCPtr, value);
+    } 
     get {
       int ret = PSMoveClientPINVOKE.PSMVector3i_z_get(swigCPtr);
       return ret;

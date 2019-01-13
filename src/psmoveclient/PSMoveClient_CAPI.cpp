@@ -78,7 +78,7 @@ public:
 			PSMCallbackTimeout timeout(timeout_ms);
 
             assert(g_psm_client != nullptr);
-			g_psm_client->register_cdecl_callback(m_request_id, PSMBlockingRequest::response_callback, this);
+			g_psm_client->register_callback(m_request_id, PSMBlockingRequest::response_callback, this);
     
 			while (!m_bReceived && !timeout.HasElapsed())
 			{
@@ -1790,11 +1790,11 @@ PSMResult PSM_SetHmdDataStreamTrackerIndexAsync(PSMHmdID hmd_id, PSMTrackerID tr
     return result;
 }
 
-PSMResult PSM_PollNextMessage(PSMMessage *message, size_t message_size)
+PSMResult PSM_PollNextMessage(PSMMessage *message)
 {
     // Poll events queued up by the call to g_psm_client->update()
     if (g_psm_client != nullptr)
-        return g_psm_client->poll_next_message(message, message_size) ? PSMResult_Success : PSMResult_Error;
+        return g_psm_client->poll_next_message(message) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
 }
@@ -1824,15 +1824,7 @@ PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *o
 PSMResult PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata)
 {
     if (g_psm_client != nullptr)
-        return g_psm_client->register_cdecl_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
-    else
-        return PSMResult_Error;
-}
-
-PSMResult PSM_RegisterSTDCALLCallback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata)
-{
-    if (g_psm_client != nullptr)
-        return g_psm_client->register_stdcall_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
+        return g_psm_client->register_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
 }
@@ -1853,7 +1845,30 @@ static void PSM_CDECL null_response_callback(
 PSMResult PSM_EatResponse(PSMRequestID request_id)
 {
     if (g_psm_client != nullptr)
-	    return g_psm_client->register_cdecl_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
+	    return g_psm_client->register_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
+}
+
+// -- PSMoveTrackingProjection -- 
+float PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj)
+{
+	float area = 0.f;
+
+	switch (proj->shape_type)
+	{
+	case PSMTrackingShapeType::PSMShape_Ellipse:
+		{
+			area = k_real_pi*proj->shape.ellipse.half_x_extent*proj->shape.ellipse.half_y_extent;
+		} break;
+	case PSMTrackingShapeType::PSMShape_LightBar:
+		{
+			PSMVector2f edge1 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[1]);
+			PSMVector2f edge2 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[3]);
+
+			area = PSM_Vector2fLength(&edge1)*PSM_Vector2fLength(&edge2);
+		} break;
+	}
+
+	return area;
 }

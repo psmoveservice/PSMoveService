@@ -493,26 +493,3 @@ void PSM_FrustumSetPose(PSMFrustum *frustum, const PSMPosef *pose)
 
     frustum->origin = {glm_mat4[3].x, glm_mat4[3].y, glm_mat4[3].z};
 }
-
-// -- PSMoveTrackingProjection -- 
-float PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj)
-{
-	float area = 0.f;
-
-	switch (proj->shape_type)
-	{
-	case PSMTrackingShapeType::PSMShape_Ellipse:
-		{
-			area = k_real_pi*proj->shape.ellipse.half_x_extent*proj->shape.ellipse.half_y_extent;
-		} break;
-	case PSMTrackingShapeType::PSMShape_LightBar:
-		{
-			PSMVector2f edge1 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[1]);
-			PSMVector2f edge2 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[3]);
-
-			area = PSM_Vector2fLength(&edge1)*PSM_Vector2fLength(&edge2);
-		} break;
-	}
-
-	return area;
-}

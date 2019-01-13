@@ -41,6 +41,9 @@ public class PSMPosef : global::System.IDisposable {
   }
 
   public PSMVector3f Position {
+    set {
+      PSMoveClientPINVOKE.PSMPosef_Position_set(swigCPtr, PSMVector3f.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMPosef_Position_get(swigCPtr);
       PSMVector3f ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMVector3f(cPtr, false);
@@ -49,6 +52,9 @@ public class PSMPosef : global::System.IDisposable {
   }
 
   public PSMQuatf Orientation {
+    set {
+      PSMoveClientPINVOKE.PSMPosef_Orientation_set(swigCPtr, PSMQuatf.getCPtr(value));
+    } 
     get {
       global::System.IntPtr cPtr = PSMoveClientPINVOKE.PSMPosef_Orientation_get(swigCPtr);
       PSMQuatf ret = (cPtr == global::System.IntPtr.Zero) ? null : new PSMQuatf(cPtr, false);

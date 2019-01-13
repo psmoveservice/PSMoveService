@@ -38,7 +38,7 @@ public:
     bool startup(e_log_severity_level log_level);
     void update();
 	void process_messages();
-    bool poll_next_message(PSMMessage *message, size_t message_size);
+    bool poll_next_message(PSMMessage *message);
     void shutdown();
 
 	// -- System Requests ----
@@ -79,8 +79,7 @@ public:
     PSMRequestID send_opaque_request(PSMRequestHandle request_handle);
 
     // -- Callback API --
-    bool register_cdecl_callback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata);
-	bool register_stdcall_callback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata);
+    bool register_callback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata);
     bool cancel_callback(PSMRequestID request_id);
     
 protected:
@@ -135,16 +134,7 @@ private:
     struct PendingRequest
     {
         PSMRequestID request_id;
-		union
-		{
-			PSMResponseCallback_CDECL cdecl_callback;
-			PSMResponseCallback_STDCALL stdcall_callback;
-		} response_callback;
-		enum {
-			_callback_type_INVALID= 0,
-			_callback_type_cdecl,
-			_callback_type_stdcall,
-		} response_callback_type;
+		PSMResponseCallback_CDECL response_callback;
         void *response_userdata;
     };
     typedef std::map<PSMRequestID, PendingRequest> t_pending_request_map;

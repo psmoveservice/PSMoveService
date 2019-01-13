@@ -76,38 +76,6 @@ typedef struct
     float zFar; 			///< far place distance of frustum, in cm
 } PSMFrustum;
 
-/// The types of tracking shapes supported in the \ref PSMTrackingProjection
-typedef enum
-{
-    PSMShape_INVALID_PROJECTION = -1,
-    PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic section)
-    PSMShape_LightBar,					///< The 2D projection of a 3D quad (bounding shape of DS4 lightbar) 
-    PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (Morpheus tracking lights)
-} PSMTrackingShapeType;
-
-/// The projection of a tracking shape onto the image plane of a tracker video feed
-typedef struct
-{
-    PSMTrackingShapeType            shape_type;
-    union{
-        struct {
-            PSMVector2f center;
-            float half_x_extent;
-            float half_y_extent;
-            float angle;
-        } ellipse;
-        struct {
-            PSMVector2f triangle[3];
-            PSMVector2f quad[4];
-        } lightbar;
-        struct {
-            PSMVector2f points[7];
-            int point_count;
-        } pointcloud;
-    }                               shape;
-    
-} PSMTrackingProjection;
-
 // Interface
 //----------
 
@@ -273,10 +241,6 @@ PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefInverseTransformPoint(const PSMPosef *
 // PSMFrustumf
 /// Update the basis (position and orientation) of a frustum to match that of a given pose
 PSM_PUBLIC_FUNCTION(void) PSM_FrustumSetPose(PSMFrustum *frustum, const PSMPosef *pose);
-
-// PSMTrackingProjection
-/// Compute the area in pixels^2 of a tracking projection
-PSM_PUBLIC_FUNCTION(float) PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj);
 
 //-- constants -----
 /// A 3D integer vector whose components are all 0

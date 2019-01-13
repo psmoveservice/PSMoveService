@@ -41,6 +41,9 @@ public class PSMVector2f : global::System.IDisposable {
   }
 
   public float x {
+    set {
+      PSMoveClientPINVOKE.PSMVector2f_x_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMVector2f_x_get(swigCPtr);
       return ret;
@@ -48,6 +51,9 @@ public class PSMVector2f : global::System.IDisposable {
   }
 
   public float y {
+    set {
+      PSMoveClientPINVOKE.PSMVector2f_y_set(swigCPtr, value);
+    } 
     get {
       float ret = PSMoveClientPINVOKE.PSMVector2f_y_get(swigCPtr);
       return ret;

@@ -214,6 +214,38 @@ typedef struct
     double      TimeInSeconds;
 } PSMPSMoveCalibratedSensorData;
 
+/// The types of tracking shapes supported in the \ref PSMTrackingProjection
+typedef enum
+{
+    PSMShape_INVALID_PROJECTION = -1,
+    PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic section)
+    PSMShape_LightBar,					///< The 2D projection of a 3D quad (bounding shape of DS4 lightbar) 
+    PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (Morpheus tracking lights)
+} PSMTrackingShapeType;
+
+/// The projection of a tracking shape onto the image plane of a tracker video feed
+typedef struct
+{
+    PSMTrackingShapeType            shape_type;
+    union{
+        struct {
+            PSMVector2f center;
+            float half_x_extent;
+            float half_y_extent;
+            float angle;
+        } ellipse;
+        struct {
+            PSMVector2f triangle[3];
+            PSMVector2f quad[4];
+        } lightbar;
+        struct {
+            PSMVector2f points[7];
+            int point_count;
+        } pointcloud;
+    }                               shape;
+    
+} PSMTrackingProjection;
+
 /// Device projection geometry as seen by each tracker
 typedef struct
 {
@@ -681,9 +713,6 @@ typedef struct
 /// Registered response callback function for a PSMoveService request
 typedef void(PSM_CDECL *PSMResponseCallback_CDECL)(const PSMResponseMessage *response, void *userdata);
 
-/// Registered response callback function for a PSMoveService request
-typedef void(PSM_STDCALL *PSMResponseCallback_STDCALL)(const PSMResponseMessage *response, void *userdata);
-
 // Message Container
 //------------------
 
@@ -873,10 +902,9 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionStringAsync(PSMRequestID *ou
 	Use this function to processes the queued event and response messages one by one.
 	If a response message does not have a callback registered with \ref PSM_RegisterCallback it will get returned here.	
 	\param[out] out_messaage The next \ref PSMMessage read from the incoming message queue.
-	\param message_size The size of the message structure. Pass in sizeof(PSMMessage).
 	\return PSMResult_Success or PSMResult_NoData if no more messages are available.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *out_message, size_t message_size);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *out_message);
 
 /** \brief Sends a private protocol request to PSMoveService.
 	If the client has linked against the PSMoveProtocol.lib and defined the HAS_PROTOCOL_ACCESS symbol then you can 
@@ -901,18 +929,6 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_SendOpaqueRequest(PSMRequestHandle request_ha
 	\return PSMResult_Success if the request_id is valid and the connection is active
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata);
-
-/** \brief Registers an async request callback  that uses the STDCALL calling convention (used by managed code)
-	A \ref PSMRequestID is issued for every request sent. 
-	This request_id can be assigned a \ref PSMResponseCallback.
-	The callback will get called when a response is fetched by a call to \ref PSMUpdate or \ref PSMUpdateNoPollMessages.
-	PSMoveConfigToolback can be canceled with a call to \ref PSM_CancelCallback.
-	\param request_id The id of a pending async request
-	\param callback A callback function pointer
-	\param callback_userdata Userdata for a callback function (often a "this" pointer to a class that issued the request).
-	\return PSMResult_Success if the request_id is valid and the connection is active
- */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterSTDCALLCallback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata);
 
 /** \brief Cancels a pending async request callback.
 	This can be used to unregister a callback for a pending async request.
@@ -1651,6 +1667,10 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartHmdDataStreamAsync(PSMHmdID hmd_id, unsi
 	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetHmdDataStreamTrackerIndexAsync(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id);
+
+// PSMTrackingProjection
+/// Compute the area in pixels^2 of a tracking projection
+PSM_PUBLIC_FUNCTION(float) PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj);
 
 /** 
 @} 

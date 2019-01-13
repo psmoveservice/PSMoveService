@@ -58,6 +58,12 @@ namespace test_console_csharp
             }
         }
 
+        private void VersionStringCallback(PSMResponseMessage message)
+        {
+            System.Console.WriteLine(
+                string.Format("VersionStringCallback - {0}", message.payload.service_version.version_string));
+        }
+
         private bool startup()
         {
             bool success = true;
@@ -82,6 +88,10 @@ namespace test_console_csharp
 
                 if (success) 
                 {
+                    int request_id = -1;
+                    PSMoveClient.PSM_GetServiceVersionStringAsync(out request_id);
+                    PSMoveClient.PSM_RegisterDelegate(request_id, this.VersionStringCallback);
+
                     rebuildControllerList();
                     rebuildTrackerList();
                     rebuildHmdList();
