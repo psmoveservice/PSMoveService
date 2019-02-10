@@ -179,6 +179,9 @@ public:
 
 struct PSMoveControllerInputState : public CommonControllerState
 {
+	unsigned char RawPacket[64]; // MAX_INTERRUPT_TRANSFER_PAYLOAD
+	int RawPacketSize; // We would expect this to be either sizeof(PSMoveDataInputZCM1) or sizeof(PSMoveDataInputZCM2)
+
     int RawSequence;                            // 4-bit (1..16).
                                                 // Sometimes frames are dropped.
     
@@ -213,14 +216,14 @@ struct PSMoveControllerInputState : public CommonControllerState
     PSMoveControllerInputState();
 
     void clear();
-	void parseDataInput(
+	void parseZCM1DataInput(
 		const PSMoveControllerConfig *config, 
-		const struct PSMoveDataInputZCM1 *previous_hid_packet,
-		const struct PSMoveDataInputZCM1 *new_hid_packet);
-	void parseDataInput(
+		const struct PSMoveDataInput *previous_hid_packet,
+		const struct PSMoveDataInput *new_hid_packet);
+	void parseZCM2DataInput(
 		const PSMoveControllerConfig *config, 
-		const struct PSMoveDataInputZCM2 *previous_hid_packet,
-		const struct PSMoveDataInputZCM2 *new_hid_packet);
+		const struct PSMoveDataInput *previous_hid_packet,
+		const struct PSMoveDataInput *new_hid_packet);
 };
 
 struct PSMoveControllerOutputState 
