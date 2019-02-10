@@ -7508,15 +7508,13 @@ SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSM_GetTracker(int jarg1) {
 }
 
 
-SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_AllocateTrackerListener(int jarg1, void * jarg2) {
+SWIGEXPORT int SWIGSTDCALL CSharp_PSMoveService_PSM_AllocateTrackerListener(int jarg1) {
   int jresult ;
   PSMTrackerID arg1 ;
-  PSMClientTrackerInfo *arg2 = (PSMClientTrackerInfo *) 0 ;
   PSMResult result;
   
   arg1 = (PSMTrackerID)jarg1; 
-  arg2 = (PSMClientTrackerInfo *)jarg2; 
-  result = (PSMResult)PSM_AllocateTrackerListener(arg1,(PSMClientTrackerInfo const *)arg2);
+  result = (PSMResult)PSM_AllocateTrackerListener(arg1);
   jresult = (int)result; 
   return jresult;
 }

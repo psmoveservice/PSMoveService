@@ -790,8 +790,8 @@ public class PSMoveClient {
     return ret;
   }
 
-  public static PSMResult PSM_AllocateTrackerListener(int tracker_id, PSMClientTrackerInfo tracker_info) {
-    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_AllocateTrackerListener(tracker_id, PSMClientTrackerInfo.getCPtr(tracker_info));
+  public static PSMResult PSM_AllocateTrackerListener(int tracker_id) {
+    PSMResult ret = (PSMResult)PSMoveClientPINVOKE.PSM_AllocateTrackerListener(tracker_id);
     return ret;
   }
 

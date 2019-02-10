@@ -1971,7 +1971,7 @@ class PSMoveClientPINVOKE {
   public static extern global::System.IntPtr PSM_GetTracker(int jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_AllocateTrackerListener")]
-  public static extern int PSM_AllocateTrackerListener(int jarg1, global::System.Runtime.InteropServices.HandleRef jarg2);
+  public static extern int PSM_AllocateTrackerListener(int jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSM_FreeTrackerListener")]
   public static extern int PSM_FreeTrackerListener(int jarg1);
