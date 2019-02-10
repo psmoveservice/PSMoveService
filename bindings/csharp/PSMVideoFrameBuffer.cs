@@ -40,20 +40,12 @@ public class PSMVideoFrameBuffer : global::System.IDisposable {
     }
   }
 
-  public byte[] rgb_buffer {
+  public System.IntPtr rgb_buffer { 
     get {
-      System.IntPtr cPtr = PSMoveClientPINVOKE.PSMVideoFrameBuffer_rgb_buffer_get(swigCPtr);
-      int len = (int)this.buffer_size_bytes;
-      if (len<=0)
-      {
-        return null;
-      }
-      byte[] returnArray = new byte[len];
-      System.Runtime.InteropServices.Marshal.Copy(cPtr, returnArray, 0, len);
-       
-      return returnArray;
-    }
-  
+        System.IntPtr cPtr = PSMoveClientPINVOKE.PSMVideoFrameBuffer_rgb_buffer_get(swigCPtr); 
+        return cPtr; 
+   } 
+
   }
 
   public uint buffer_size_bytes {

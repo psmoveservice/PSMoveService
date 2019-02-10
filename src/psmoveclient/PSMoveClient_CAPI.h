@@ -1299,7 +1299,7 @@ PSM_PUBLIC_FUNCTION(PSMTracker *) PSM_GetTracker(PSMTrackerID tracker_id);
 	\param tracker_id The id of the tracker we want to allocate a listener for
 	\return PSMResult_Success if a valid tracker id is given
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id);
 
 /** \brief Free a reference to a tracker
 	This function tells the client API to decrement a reference count for a given tracker.

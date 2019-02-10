@@ -27,10 +27,10 @@ class ClientRequestManagerImpl
 {
 public:
     ClientRequestManagerImpl(
-        IDataFrameListener *dataFrameListener,
+        IDeviceStateListener *deviceStateListener,
         PSMResponseCallback_CDECL callback,
         void *userdata)
-        : m_dataFrameListener(dataFrameListener)
+        : m_deviceStateListener(deviceStateListener)
         , m_callback(callback)
         , m_callback_userdata(userdata)
         , m_pending_requests()
@@ -161,7 +161,7 @@ public:
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED:
                 {
                     const PSMoveProtocol::DeviceOutputDataFrame *dataFrame= &response->result_controller_stream_started().initial_data_frame();
-                    m_dataFrameListener->handle_data_frame(dataFrame);
+                    m_deviceStateListener->handle_data_frame(dataFrame);
                 } break;
 			case PSMoveProtocol::Response_ResponseType_SERVICE_VERSION:
                 build_service_version_response_message(response, &out_response_message->payload.service_version);
@@ -175,6 +175,11 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_TrackerList;
                 break;
+			case PSMoveProtocol::Response_ResponseType_TRACKER_STREAM_STARTED:
+				{
+					const PSMoveProtocol::TrackerInfo *trackerResponse = &response->result_tracker_stream_started().tracker_info();
+					m_deviceStateListener->handle_tracker_info_updated(trackerResponse);
+				} break;
 			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
 				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
 				out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_HmdList;
@@ -213,7 +218,7 @@ public:
         {
             const auto &ControllerResponse = response->result_controller_list().controllers(src_controller_count);
             const bool bIsBluetooth=
-				ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH;
+				ControllerResponse.connection_type() == PSMoveProtocol::ControllerInfo_ConnectionType_BLUETOOTH;
 
 			// For some controllers, we only include them in the public facing controller list
 			// if the controller is currently connected via bluetooth
@@ -419,7 +424,7 @@ public:
 	}
 
 private:
-    IDataFrameListener *m_dataFrameListener;
+    IDeviceStateListener *m_deviceStateListener;
     PSMResponseCallback_CDECL m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
@@ -434,7 +439,7 @@ private:
 
 //-- public methods -----
 ClientRequestManager::ClientRequestManager(
-    IDataFrameListener *dataFrameListener,
+    IDeviceStateListener *dataFrameListener,
     PSMResponseCallback_CDECL callback,
     void *userdata)
 {

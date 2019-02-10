@@ -25,6 +25,7 @@ namespace PSMoveProtocol
     class DeviceInputDataFrame;
 	class Request;
 	class Response;
+    class TrackerInfo;
 };
 
 typedef std::shared_ptr<PSMoveProtocol::DeviceOutputDataFrame> DeviceOutputDataFramePtr;
@@ -39,9 +40,10 @@ public:
     virtual void handle_notification(ResponsePtr response) = 0;
 };
 
-class IDataFrameListener
+class IDeviceStateListener
 {
 public:
+	virtual void handle_tracker_info_updated(const PSMoveProtocol::TrackerInfo *tracker_info) = 0;
     virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) = 0;
 };
 

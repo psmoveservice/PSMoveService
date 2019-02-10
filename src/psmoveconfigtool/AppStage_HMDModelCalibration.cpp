@@ -1204,8 +1204,8 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const PSMTrackerList &trac
 			m_trackerPairState->F_ab = Kb.inverse().transpose() * E * Ka.inverse();
 
 			// Allocate tracker views for A and B
-			PSM_AllocateTrackerListener(tracker_a_info->tracker_id, tracker_a_info);
-			PSM_AllocateTrackerListener(tracker_b_info->tracker_id, tracker_b_info);
+			PSM_AllocateTrackerListener(tracker_a_info->tracker_id);
+			PSM_AllocateTrackerListener(tracker_b_info->tracker_id);
 
 			m_trackerPairState->trackers.pair.a.trackerView= PSM_GetTracker(tracker_a_info->tracker_id);
 			m_trackerPairState->trackers.pair.a.textureAsset = nullptr;

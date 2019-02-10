@@ -1061,10 +1061,10 @@ PSMTracker *PSM_GetTracker(PSMTrackerID tracker_id)
         return nullptr;
 }
 
-PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info)
+PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id)
 {
     if (g_psm_client != nullptr)
-	    return g_psm_client->allocate_tracker_listener(*tracker_info) ? PSMResult_Success : PSMResult_Error;
+	    return g_psm_client->allocate_tracker_listener(tracker_id) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
 }

@@ -26,5 +26,4 @@
 %}
 
 // Register function pointer types in the typemap
-//%cs_callback(PSMResponseCallback_STDCALL, PSMoveClient.PSMResponseCallback)
 %cs_callback(PSMResponseCallback_CDECL, PSMoveClient.PSMResponseCallback)

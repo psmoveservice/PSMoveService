@@ -176,7 +176,7 @@ void AppStage_ColorCalibration::enter()
 
     // Use the tracker selected from the tracker settings menu
     assert(m_trackerView == nullptr);
-    PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+    PSM_AllocateTrackerListener(trackerInfo->tracker_id);
     m_trackerView = PSM_GetTracker(trackerInfo->tracker_id);
 
     if (m_overrideHmdId != -1)

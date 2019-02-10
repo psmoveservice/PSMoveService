@@ -15,7 +15,7 @@ class PSM_CPP_PRIVATE_CLASS ClientNetworkManager
 public:
     ClientNetworkManager(
         const std::string &host, const std::string &port, 
-        IDataFrameListener *dataFrameListener,
+        IDeviceStateListener *deviceStateListener,
         INotificationListener *notificationListener,
         IResponseListener *responseListener,
         IClientNetworkEventListener *netEventListener);

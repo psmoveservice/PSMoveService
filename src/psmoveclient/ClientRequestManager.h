@@ -9,7 +9,7 @@
 class PSM_CPP_PRIVATE_CLASS ClientRequestManager : public IResponseListener
 {
 public:
-    ClientRequestManager(IDataFrameListener *dataFrameListener,
+    ClientRequestManager(IDeviceStateListener *dataFrameListener,
                          PSMResponseCallback_CDECL callback,
                          void *userdata);
     virtual ~ClientRequestManager();

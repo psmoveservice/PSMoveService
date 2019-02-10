@@ -49,7 +49,7 @@ void AppStage_TestTracker::enter()
     m_app->setCameraType(_cameraFixed);
 
     assert(m_tracker_view == nullptr);
-	PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+	PSM_AllocateTrackerListener(trackerInfo->tracker_id);
 	m_tracker_view = PSM_GetTracker(trackerInfo->tracker_id);
 
     assert(!m_bStreamIsActive);

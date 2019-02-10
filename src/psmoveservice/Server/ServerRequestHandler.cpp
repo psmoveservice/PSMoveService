@@ -641,7 +641,7 @@ protected:
 
             if (controller_view->getIsOpen() && (bIncludeUSB || bIsNonUSB))
             {
-                PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
+                PSMoveProtocol::ControllerInfo *controller_info= list->add_controllers();
 
                 int firmware_version = 0;
                 int firmware_revision = 0;
@@ -651,7 +651,7 @@ protected:
                 std::string orientation_filter = "";
                 std::string position_filter = "";
                 std::string gyro_gain_setting = "";
-				std::string controller_hand= "";
+                std::string controller_hand= "";
 
                 float prediction_time = 0.f;
 
@@ -669,7 +669,7 @@ protected:
                         firmware_version = config->firmware_version;
                         firmware_revision = config->firmware_revision;
                         prediction_time = config->prediction_time;
-						controller_hand= config->hand;
+                        controller_hand= config->hand;
                         has_magnetometer = controller->getSupportsMagnetometer();
 
                         controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
@@ -723,7 +723,7 @@ protected:
                         orientation_filter = config->orientation_filter_type;
                         position_filter = config->position_filter_type;
                         prediction_time = config->prediction_time;
-						controller_hand= config->hand;
+                        controller_hand= config->hand;
 
                     controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
                     }
@@ -738,7 +738,7 @@ protected:
 
                         controller_info->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
                         gamepad_index= config->gamepad_index;
-						controller_hand= config->hand;
+                        controller_hand= config->hand;
                     }
                     break;
                 default:
@@ -748,8 +748,8 @@ protected:
                 controller_info->set_controller_id(controller_id);
                 controller_info->set_connection_type(
                     bIsNonUSB
-                    ? PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH
-                    : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);  
+                    ? PSMoveProtocol::ControllerInfo_ConnectionType_BLUETOOTH
+                    : PSMoveProtocol::ControllerInfo_ConnectionType_USB);  
                 controller_info->set_tracking_color_type(
                     static_cast<PSMoveProtocol::TrackingColorType>(controller_view->getTrackingColorID()));
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
@@ -765,12 +765,12 @@ protected:
                 controller_info->set_prediction_time(prediction_time);
                 controller_info->set_gamepad_index(gamepad_index);
 
-				if (controller_hand == "Left")
-					controller_info->set_controller_hand(PSMoveProtocol::HAND_LEFT);
-				else if (controller_hand == "Right")
-					controller_info->set_controller_hand(PSMoveProtocol::HAND_RIGHT);
-				else
-					controller_info->set_controller_hand(PSMoveProtocol::HAND_ANY);
+                if (controller_hand == "Left")
+                    controller_info->set_controller_hand(PSMoveProtocol::HAND_LEFT);
+                else if (controller_hand == "Right")
+                    controller_info->set_controller_hand(PSMoveProtocol::HAND_RIGHT);
+                else
+                    controller_info->set_controller_hand(PSMoveProtocol::HAND_ANY);
             }
         }
 
@@ -1193,7 +1193,7 @@ protected:
                 config.accelerometer_noise_radius= request.noise_radius();
                 config.accelerometer_variance = request.variance();
                 
-				controller->setConfig(&config);
+                controller->setConfig(&config);
 
                 ControllerView->resetPoseFilter();
 
@@ -1210,7 +1210,7 @@ protected:
                 config.accelerometer_noise_radius= request.noise_radius();
                 config.accelerometer_variance = request.variance();
                 
-				controller->setConfig(&config);
+                controller->setConfig(&config);
 
                 ControllerView->resetPoseFilter();
 
@@ -1292,7 +1292,7 @@ protected:
 
                 if (bChanged)
                 {
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
                 }
 
                 ControllerView->resetPoseFilter();
@@ -1309,10 +1309,10 @@ protected:
 
                 bool bChanged = false;
 
-				if (config.set_raw_gyro_bias(request.raw_bias().i(), request.raw_bias().j(), request.raw_bias().k()))
-				{
-					bChanged = true;
-				}
+                if (config.set_raw_gyro_bias(request.raw_bias().i(), request.raw_bias().j(), request.raw_bias().k()))
+                {
+                    bChanged = true;
+                }
 
                 if (request.drift() > 0.f)
                 {
@@ -1328,7 +1328,7 @@ protected:
 
                 if (bChanged)
                 {
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
                 }
 
                 ControllerView->resetPoseFilter();
@@ -1368,7 +1368,7 @@ protected:
                 config.orientation_variance_exp_fit_a = request.orientation_variance_exp_fit_a();
                 config.orientation_variance_exp_fit_b = request.orientation_variance_exp_fit_b();
 
-				controller->setConfig(&config);
+                controller->setConfig(&config);
 
                 ControllerView->resetPoseFilter();
 
@@ -1434,7 +1434,7 @@ protected:
                 {
                     config.orientation_filter_type = request.orientation_filter();
                     
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1450,7 +1450,7 @@ protected:
                 {
                     config.orientation_filter_type = request.orientation_filter();
 
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1489,7 +1489,7 @@ protected:
                 {
                     config.position_filter_type = request.position_filter();
 
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1505,7 +1505,7 @@ protected:
                 {
                     config.position_filter_type = request.position_filter();
 
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1559,7 +1559,7 @@ protected:
                 {
                     config.prediction_time = request.prediction_time();
 
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1573,7 +1573,7 @@ protected:
                 {
                     config.prediction_time = request.prediction_time();
 
-					controller->setConfig(&config);
+                    controller->setConfig(&config);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1709,76 +1709,76 @@ protected:
         }
     }
 
-	void handle_request__set_controller_hand(
+    void handle_request__set_controller_hand(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
-	{
+    {
         const int controller_id = context.request->request_set_controller_hand().controller_id();
         std::string hand;
 
-		switch (context.request->request_set_controller_hand().controller_hand())
-		{
-		case PSMoveProtocol::HAND_LEFT:
-			hand= "Left";
-			break;
-		case PSMoveProtocol::HAND_RIGHT:
-			hand= "Right";
-			break;
-		case PSMoveProtocol::HAND_ANY:
-		default:
-			hand= "Any";
-			break;
-		}
-		
-		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+        switch (context.request->request_set_controller_hand().controller_hand())
+        {
+        case PSMoveProtocol::HAND_LEFT:
+            hand= "Left";
+            break;
+        case PSMoveProtocol::HAND_RIGHT:
+            hand= "Right";
+            break;
+        case PSMoveProtocol::HAND_ANY:
+        default:
+            hand= "Any";
+            break;
+        }
+        
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && 
             ControllerView->getIsOpen())
         {
-			switch (ControllerView->getControllerDeviceType())
-			{
-			case CommonDeviceState::PSMove:
-				{
-					PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-					PSMoveControllerConfig config = *controller->getConfig();
+            switch (ControllerView->getControllerDeviceType())
+            {
+            case CommonDeviceState::PSMove:
+                {
+                    PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+                    PSMoveControllerConfig config = *controller->getConfig();
 
-					config.hand = hand;
-					controller->setConfig(&config);
+                    config.hand = hand;
+                    controller->setConfig(&config);
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-				}
-				break;
-			case CommonDeviceState::PSDualShock4:
-				{
-					PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-					PSDualShock4ControllerConfig config = *controller->getConfig();
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                break;
+            case CommonDeviceState::PSDualShock4:
+                {
+                    PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+                    PSDualShock4ControllerConfig config = *controller->getConfig();
 
-					config.hand = hand;
-					controller->setConfig(&config);
+                    config.hand = hand;
+                    controller->setConfig(&config);
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-				}
-				break;
-			case CommonDeviceState::VirtualController:
-				{
-					VirtualController *controller = ControllerView->castChecked<VirtualController>();
-					VirtualControllerConfig *config = controller->getConfigMutable();
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                break;
+            case CommonDeviceState::VirtualController:
+                {
+                    VirtualController *controller = ControllerView->castChecked<VirtualController>();
+                    VirtualControllerConfig *config = controller->getConfigMutable();
 
-					config->hand = hand;
-					config->save();
+                    config->hand = hand;
+                    config->save();
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-				}
-				break;
-			default:
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-			}
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                break;
+            default:
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
-	}
+    }
 
     // -- tracker requests -----
     inline void common_device_pose_to_protocol_pose(
@@ -1798,6 +1798,94 @@ protected:
         position->set_z(pose.PositionCm.z);
     }
 
+    void fetch_tracker_info_from_view(
+        const ServerTrackerViewPtr &tracker_view,
+        PSMoveProtocol::TrackerInfo* tracker_info)
+    {
+        switch (tracker_view->getTrackerDeviceType())
+        {
+        case CommonControllerState::PS3EYE:
+            tracker_info->set_tracker_type(PSMoveProtocol::PS3EYE);
+            break;
+        default:
+            assert(0 && "Unhandled tracker type");
+        }
+
+        switch (tracker_view->getTrackerDriverType())
+        {
+        case ITrackerInterface::Libusb:
+            tracker_info->set_tracker_driver(PSMoveProtocol::LIBUSB);
+            break;
+        case ITrackerInterface::CL:
+            tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE);
+            break;
+        case ITrackerInterface::CLMulti:
+            tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE_MULTICAM);
+            break;
+            // PSMoveProtocol::ISIGHT?
+        case ITrackerInterface::Generic_Webcam:
+            tracker_info->set_tracker_driver(PSMoveProtocol::GENERIC_WEBCAM);
+            break;
+        default:
+            assert(0 && "Unhandled tracker type");
+        }
+
+        tracker_info->set_tracker_id(tracker_view->getDeviceID());
+        tracker_info->set_device_path(tracker_view->getUSBDevicePath());
+        tracker_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
+
+        // Get the intrinsic camera lens properties
+        {
+            float pixelWidth, pixelHeight;
+            float focalLengthX, focalLengthY, principalX, principalY;
+            float distortionK1, distortionK2, distortionK3;
+            float distortionP1, distortionP2;
+
+            tracker_view->getCameraIntrinsics(
+                focalLengthX, focalLengthY, 
+                principalX, principalY,
+                distortionK1, distortionK2, distortionK3,
+                distortionP1, distortionP2);
+            tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
+
+            tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
+            tracker_info->mutable_tracker_focal_lengths()->set_y(focalLengthY);
+
+            tracker_info->mutable_tracker_principal_point()->set_x(principalX);
+            tracker_info->mutable_tracker_principal_point()->set_y(principalY);
+
+            tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
+            tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
+
+            tracker_info->set_tracker_k1(distortionK1);
+            tracker_info->set_tracker_k2(distortionK2);
+            tracker_info->set_tracker_k3(distortionK3);
+            tracker_info->set_tracker_p1(distortionP1);
+            tracker_info->set_tracker_p2(distortionP2);
+        }
+
+        // Get the tracker field of view properties
+        {
+            float hfov, vfov;
+            float zNear, zFar;
+                    
+            tracker_view->getFOV(hfov, vfov);
+            tracker_view->getZRange(zNear, zFar);
+
+            tracker_info->set_tracker_hfov(hfov);
+            tracker_info->set_tracker_vfov(vfov);
+            tracker_info->set_tracker_znear(zNear);
+            tracker_info->set_tracker_zfar(zFar);
+        }
+
+        // Get the tracker pose
+        {
+            CommonDevicePose pose= tracker_view->getTrackerPose();
+
+            common_device_pose_to_protocol_pose(pose, tracker_info->mutable_tracker_pose());
+        }
+    }
+
     void handle_request__get_tracker_list(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
@@ -1812,90 +1900,9 @@ protected:
 
             if (tracker_view->getIsOpen())
             {
-                PSMoveProtocol::Response_ResultTrackerList_TrackerInfo *tracker_info = list->add_trackers();
+                PSMoveProtocol::TrackerInfo *tracker_info = list->add_trackers();
 
-                switch (tracker_view->getTrackerDeviceType())
-                {
-                case CommonControllerState::PS3EYE:
-                    tracker_info->set_tracker_type(PSMoveProtocol::PS3EYE);
-                    break;
-                default:
-                    assert(0 && "Unhandled tracker type");
-                }
-
-                switch (tracker_view->getTrackerDriverType())
-                {
-                case ITrackerInterface::Libusb:
-                    tracker_info->set_tracker_driver(PSMoveProtocol::LIBUSB);
-                    break;
-                case ITrackerInterface::CL:
-                    tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE);
-                    break;
-                case ITrackerInterface::CLMulti:
-                    tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE_MULTICAM);
-                    break;
-                    // PSMoveProtocol::ISIGHT?
-                case ITrackerInterface::Generic_Webcam:
-                    tracker_info->set_tracker_driver(PSMoveProtocol::GENERIC_WEBCAM);
-                    break;
-                default:
-                    assert(0 && "Unhandled tracker type");
-                }
-
-                tracker_info->set_tracker_id(tracker_id);
-                tracker_info->set_device_path(tracker_view->getUSBDevicePath());
-                tracker_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
-
-                // Get the intrinsic camera lens properties
-                {
-                    float pixelWidth, pixelHeight;
-                    float focalLengthX, focalLengthY, principalX, principalY;
-                    float distortionK1, distortionK2, distortionK3;
-                    float distortionP1, distortionP2;
-
-                    tracker_view->getCameraIntrinsics(
-                        focalLengthX, focalLengthY, 
-                        principalX, principalY,
-                        distortionK1, distortionK2, distortionK3,
-                        distortionP1, distortionP2);
-                    tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
-
-                    tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
-                    tracker_info->mutable_tracker_focal_lengths()->set_y(focalLengthY);
-
-                    tracker_info->mutable_tracker_principal_point()->set_x(principalX);
-                    tracker_info->mutable_tracker_principal_point()->set_y(principalY);
-
-                    tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
-                    tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
-
-                    tracker_info->set_tracker_k1(distortionK1);
-                    tracker_info->set_tracker_k2(distortionK2);
-                    tracker_info->set_tracker_k3(distortionK3);
-                    tracker_info->set_tracker_p1(distortionP1);
-                    tracker_info->set_tracker_p2(distortionP2);
-                }
-
-                // Get the tracker field of view properties
-                {
-                    float hfov, vfov;
-                    float zNear, zFar;
-                    
-                    tracker_view->getFOV(hfov, vfov);
-                    tracker_view->getZRange(zNear, zFar);
-
-                    tracker_info->set_tracker_hfov(hfov);
-                    tracker_info->set_tracker_vfov(vfov);
-                    tracker_info->set_tracker_znear(zNear);
-                    tracker_info->set_tracker_zfar(zFar);
-                }
-
-                // Get the tracker pose
-                {
-                    CommonDevicePose pose= tracker_view->getTrackerPose();
-
-                    common_device_pose_to_protocol_pose(pose, tracker_info->mutable_tracker_pose());
-                }                
+                fetch_tracker_info_from_view(tracker_view, tracker_info);
             }
         }
 
@@ -1910,6 +1917,12 @@ protected:
         const PSMoveProtocol::Request_RequestStartTrackerDataStream& request =
             context.request->request_start_tracker_data_stream();
         int tracker_id = request.tracker_id();
+
+        // Allocate the response messages
+        auto* tracker_started_response = response->mutable_result_tracker_stream_started();
+        PSMoveProtocol::TrackerInfo* tracker_info= tracker_started_response->mutable_tracker_info();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
@@ -1929,6 +1942,9 @@ protected:
 
                 // Increment the number of stream listeners
                 tracker_view->startSharedMemoryVideoStream();
+
+                // Fill in tracker properties in the response
+                fetch_tracker_info_from_view(tracker_view, tracker_info);
 
                 // Return the name of the shared memory block the video frames will be written to
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -2665,7 +2681,7 @@ protected:
 
             if (hmd_view->getIsOpen())
             {
-                PSMoveProtocol::Response_ResultHMDList_HMDInfo *hmd_info = list->add_hmd_entries();
+                PSMoveProtocol::HMDInfo *hmd_info = list->add_hmd_entries();
 
                 switch (hmd_view->getHMDDeviceType())
                 {

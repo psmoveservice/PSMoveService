@@ -929,7 +929,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.AssignedParentControllerSerial= ControllerResponse.parent_controller_serial();
                 ControllerInfo.AssignedParentControllerIndex= -1;
                 ControllerInfo.PotentialParentControllerSerials.clear();
-                ControllerInfo.IsBluetooth= ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH;
+                ControllerInfo.IsBluetooth= ControllerResponse.connection_type() == PSMoveProtocol::ControllerInfo_ConnectionType_BLUETOOTH;
                 ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
                 ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
                 ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();

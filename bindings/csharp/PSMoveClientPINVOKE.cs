@@ -1419,7 +1419,7 @@ class PSMoveClientPINVOKE {
   public static extern void delete_PSMController_ControllerState(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVideoFrameBuffer_rgb_buffer_get")]
-  public static extern global::System.IntPtr PSMVideoFrameBuffer_rgb_buffer_get(global::System.Runtime.InteropServices.HandleRef jarg1);
+  public static extern System.IntPtr PSMVideoFrameBuffer_rgb_buffer_get(global::System.Runtime.InteropServices.HandleRef jarg1);
 
   [global::System.Runtime.InteropServices.DllImport("PSMoveClient_swig_csharp", EntryPoint="CSharp_PSMoveService_PSMVideoFrameBuffer_buffer_size_bytes_get")]
   public static extern uint PSMVideoFrameBuffer_buffer_size_bytes_get(global::System.Runtime.InteropServices.HandleRef jarg1);

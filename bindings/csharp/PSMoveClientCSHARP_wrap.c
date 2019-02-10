@@ -5332,14 +5332,14 @@ SWIGEXPORT void SWIGSTDCALL CSharp_PSMoveService_delete_PSMController_Controller
 }
 
 
-SWIGEXPORT void * SWIGSTDCALL CSharp_PSMoveService_PSMVideoFrameBuffer_rgb_buffer_get(void * jarg1) {
-  void * jresult ;
+SWIGEXPORT unsigned char * SWIGSTDCALL CSharp_PSMoveService_PSMVideoFrameBuffer_rgb_buffer_get(void * jarg1) {
+  unsigned char * jresult ;
   PSMVideoFrameBuffer *arg1 = (PSMVideoFrameBuffer *) 0 ;
   unsigned char *result = 0 ;
   
   arg1 = (PSMVideoFrameBuffer *)jarg1; 
   result = (unsigned char *) ((arg1)->rgb_buffer);
-  jresult = (void *)result; 
+  jresult = result; 
   return jresult;
 }
 

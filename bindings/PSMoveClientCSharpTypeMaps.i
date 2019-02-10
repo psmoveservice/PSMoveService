@@ -26,6 +26,23 @@ CSHARP_ARRAYS(char *,string)
         System.IntPtr cPtr = $imcall;$excode 
         return cPtr; 
    } 
+%}
+
+%typemap(ctype)  unsigned char* "unsigned char *"
+%typemap(imtype) unsigned char* "System.IntPtr"
+%typemap(cstype) unsigned char* "System.IntPtr"
+%typemap(csin)   unsigned char* "$csinput"
+%typemap(in)     unsigned char* %{ $1 = $input; %}
+%typemap(out)    unsigned char* %{ $result = $1; %}
+%typemap(csout, excode=SWIGEXCODE)  unsigned char* { 
+    System.IntPtr cPtr = $imcall;$excode
+    return cPtr;
+    }
+%typemap(csvarout, excode=SWIGEXCODE2) unsigned char* %{ 
+    get {
+        System.IntPtr cPtr = $imcall;$excode 
+        return cPtr; 
+   } 
 %} 
 
 %apply bool *OUTPUT { bool *out_is_stable };
@@ -184,14 +201,6 @@ MAKE_STRUCT_SIZEOF_ACCESSOR(PSMClientControllerInfo);
 MAKE_STRUCT_SIZEOF_ACCESSOR(PSMClientHMDInfo);
 MAKE_STRUCT_SIZEOF_ACCESSOR(PSMClientTrackerInfo);
 MAKE_STRUCT_SIZEOF_ACCESSOR(PSMVector2f);
-
-// Marshall the video buffer on PSMVideoFrameBuffer from unmanaged to managed memory
-CUSTOM_READONLY_PRIMITIVE_TYPE_BUFFER_PROPERTY(
-  rgb_buffer, 
-  unsigned char,
-  byte, 
-  PSMVideoFrameBuffer_rgb_buffer_get,
-  this.buffer_size_bytes);
 
 // Marshall the axis state array on PSMVirtualController from unmanaged to managed memory
 CUSTOM_READONLY_PRIMITIVE_TYPE_ARRAY_PROPERTY(

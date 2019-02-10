@@ -16,7 +16,7 @@ typedef std::vector<ResponsePtr> t_event_reference_cache;
 
 //-- definitions -----
 class PSMoveClient : 
-    public IDataFrameListener,
+    public IDeviceStateListener,
     public INotificationListener,
     public IClientNetworkEventListener
 {
@@ -56,7 +56,7 @@ public:
     PSMRequestID set_controller_data_stream_tracker_index(PSMControllerID controller_id, PSMTrackerID tracker_id);
 	PSMRequestID set_controller_hand(PSMControllerID controller_id, PSMControllerHand controller_hand);
 
-    bool allocate_tracker_listener(const PSMClientTrackerInfo &trackerInfo);
+    bool allocate_tracker_listener(PSMTrackerID tracker_id);
     void free_tracker_listener(PSMTrackerID tracker_id);
     PSMTracker* get_tracker_view(PSMTrackerID tracker_id);
 	PSMRequestID get_tracking_space_settings();
@@ -85,7 +85,8 @@ public:
 protected:
     void publish();
 
-    // IDataFrameListener
+    // IDeviceStateListener
+	virtual void handle_tracker_info_updated(const PSMoveProtocol::TrackerInfo *tracker_info) override;
     virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) override;
 
     // INotificationListener

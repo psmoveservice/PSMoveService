@@ -399,7 +399,7 @@ void AppStage_DistortionCalibration::enter()
     m_app->setCameraType(_cameraFixed);
 
     assert(m_tracker_view == nullptr);
-	PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+	PSM_AllocateTrackerListener(trackerInfo->tracker_id);
 	m_tracker_view = PSM_GetTracker(trackerInfo->tracker_id);
 
 	m_square_length_mm = DEFAULT_SQUARE_LEN_MM;

@@ -223,13 +223,13 @@ PSMoveClient::PSMoveClient(
 {
 	m_request_manager=
 		new ClientRequestManager(
-            this,  // IDataFrameListener
+            this,  // IDeviceStateListener
             PSMoveClient::handle_response_message,
             this);  // ClientPSMoveAPIImpl::handle_response_message userdata
     m_network_manager=
 		new ClientNetworkManager(
 			host, port, 
-			this, // IDataFrameListener
+			this, // IDeviceStateListener
 			this, // INotificationListener
 			m_request_manager, // IResponseListener
 			this); // IClientNetworkEventListener
@@ -873,18 +873,20 @@ PSMRequestID PSMoveClient::set_controller_hand(PSMControllerID controller_id, PS
 	return requestID;
 }
 
-bool PSMoveClient::allocate_tracker_listener(const PSMClientTrackerInfo &trackerInfo)
+bool PSMoveClient::allocate_tracker_listener(PSMTrackerID tracker_id)
 {
     bool bSuccess= false;
 
-    if (IS_VALID_TRACKER_INDEX(trackerInfo.tracker_id))
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
     {
-        PSMTracker *tracker= &m_trackers[trackerInfo.tracker_id];
+        PSMTracker *tracker= &m_trackers[tracker_id];
 
 		if (tracker->listener_count == 0)
 		{
 			memset(tracker, 0, sizeof(PSMTracker));
-            tracker->tracker_info= trackerInfo;
+            tracker->tracker_info.tracker_id= tracker_id;
+			tracker->tracker_info.tracker_type= PSMTracker_None;
+			tracker->tracker_info.tracker_pose= *k_psm_pose_identity;
         }
 
         ++tracker->listener_count;
@@ -908,6 +910,7 @@ void PSMoveClient::free_tracker_listener(PSMTrackerID tracker_id)
 			memset(tracker, 0, sizeof(PSMTracker));
 			tracker->tracker_info.tracker_id= tracker_id;
 			tracker->tracker_info.tracker_type= PSMTracker_None;
+			tracker->tracker_info.tracker_pose= *k_psm_pose_identity;
 		}
 	}
 }
@@ -1224,7 +1227,86 @@ PSMRequestID PSMoveClient::send_opaque_request(
     return request->request_id();
 }    
     
-// IDataFrameListener
+// IDeviceStateListener
+void PSMoveClient::handle_tracker_info_updated(const PSMoveProtocol::TrackerInfo *tracker_response)
+{
+    CLIENT_LOG_TRACE("handle_tracker_info_updated") 
+        << "received tracker info update for TrackerID: " 
+        << tracker_response->tracker_id() << std::endl;
+
+	if (IS_VALID_TRACKER_INDEX(tracker_response->tracker_id()))
+	{
+		PSMTracker *tracker= get_tracker_view(tracker_response->tracker_id());
+        PSMClientTrackerInfo &TrackerInfo= tracker->tracker_info;
+
+        TrackerInfo.tracker_id = tracker_response->tracker_id();
+
+        switch (tracker_response->tracker_type())
+        {
+        case PSMoveProtocol::TrackerType::PS3EYE:
+            TrackerInfo.tracker_type = PSMTracker_PS3Eye;
+            break;
+        default:
+            assert(0 && "unreachable");
+        }
+
+        switch (tracker_response->tracker_driver())
+        {
+        case PSMoveProtocol::TrackerDriver::LIBUSB:
+            TrackerInfo.tracker_driver = PSMDriver_LIBUSB;
+            break;
+        case PSMoveProtocol::TrackerDriver::CL_EYE:
+            TrackerInfo.tracker_driver = PSMDriver_CL_EYE;
+            break;
+        case PSMoveProtocol::TrackerDriver::CL_EYE_MULTICAM:
+            TrackerInfo.tracker_driver = PSMDriver_CL_EYE_MULTICAM;
+            break;
+        case PSMoveProtocol::TrackerDriver::GENERIC_WEBCAM:
+            TrackerInfo.tracker_driver = PSMDriver_GENERIC_WEBCAM;
+            break;
+        default:
+            assert(0 && "unreachable");
+        }
+
+        TrackerInfo.tracker_focal_lengths = 
+            { tracker_response->tracker_focal_lengths().x(), tracker_response->tracker_focal_lengths().y() };
+        TrackerInfo.tracker_principal_point =
+            { tracker_response->tracker_principal_point().x(), tracker_response->tracker_principal_point().y() };
+        TrackerInfo.tracker_screen_dimensions =
+            { tracker_response->tracker_screen_dimensions().x(), tracker_response->tracker_screen_dimensions().y() };
+
+        TrackerInfo.tracker_hfov = tracker_response->tracker_hfov();
+        TrackerInfo.tracker_vfov = tracker_response->tracker_vfov();
+
+        TrackerInfo.tracker_znear = tracker_response->tracker_znear();
+        TrackerInfo.tracker_zfar = tracker_response->tracker_zfar();
+
+        TrackerInfo.tracker_k1 = tracker_response->tracker_k1();
+        TrackerInfo.tracker_k2 = tracker_response->tracker_k2();
+        TrackerInfo.tracker_k3 = tracker_response->tracker_k3();
+        TrackerInfo.tracker_p1 = tracker_response->tracker_p1();
+        TrackerInfo.tracker_p2 = tracker_response->tracker_p2();
+
+        strncpy(TrackerInfo.device_path, tracker_response->device_path().c_str(), sizeof(TrackerInfo.device_path));
+        strncpy(TrackerInfo.shared_memory_name, tracker_response->shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
+
+        {
+            const PSMoveProtocol::Pose &pose= tracker_response->tracker_pose();
+            const PSMoveProtocol::Orientation &quat= pose.orientation();
+            const PSMoveProtocol::Position &position= pose.position();
+
+            TrackerInfo.tracker_pose.Orientation.w= quat.w();
+            TrackerInfo.tracker_pose.Orientation.x= quat.x();
+            TrackerInfo.tracker_pose.Orientation.y= quat.y();
+            TrackerInfo.tracker_pose.Orientation.z= quat.z();
+
+            TrackerInfo.tracker_pose.Position.x= position.x();
+            TrackerInfo.tracker_pose.Position.y= position.y();
+            TrackerInfo.tracker_pose.Position.z= position.z();
+        }
+	}
+}
+
 void PSMoveClient::handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame)
 {
     switch (data_frame->device_category())

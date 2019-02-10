@@ -31,7 +31,7 @@ public:
     ClientNetworkManagerImpl(
         const std::string &host, 
         const std::string &port, 
-        IDataFrameListener *dataFrameListener,
+        IDeviceStateListener *deviceStateListener,
         INotificationListener *notificationListener,
         IResponseListener *responseListener,
         IClientNetworkEventListener *netEventListener)
@@ -58,7 +58,7 @@ public:
         , m_write_bufer()
         , m_packed_request()
 
-        , m_data_frame_listener(dataFrameListener)
+        , m_device_state_listener(deviceStateListener)
         , m_notification_listener(notificationListener)
         , m_response_listener(responseListener)
         , m_netEventListener(netEventListener)
@@ -700,7 +700,7 @@ private:
         {
             const PSMoveProtocol::DeviceOutputDataFrame *data_frame = m_packed_output_data_frame.get_msg().get();
 
-            m_data_frame_listener->handle_data_frame(data_frame);
+            m_device_state_listener->handle_data_frame(data_frame);
         }
         else
         {
@@ -746,7 +746,7 @@ private:
     vector<uint8_t> m_write_bufer;
     PackedMessage<PSMoveProtocol::Request> m_packed_request;
 
-    IDataFrameListener *m_data_frame_listener;
+    IDeviceStateListener *m_device_state_listener;
     INotificationListener *m_notification_listener;
     IResponseListener *m_response_listener;
     IClientNetworkEventListener *m_netEventListener;
@@ -762,7 +762,7 @@ ClientNetworkManager *ClientNetworkManager::m_instance = NULL;
 ClientNetworkManager::ClientNetworkManager(
     const std::string &host, 
     const std::string &port, 
-    IDataFrameListener *dataFrameListener,
+    IDeviceStateListener *deviceStateListener,
     INotificationListener *notificationListener,
     IResponseListener *responseListener,
     IClientNetworkEventListener *netEventListener)
@@ -770,7 +770,7 @@ ClientNetworkManager::ClientNetworkManager(
         new ClientNetworkManagerImpl(
             host, 
             port, 
-            dataFrameListener,
+            deviceStateListener,
             notificationListener,
             responseListener,
             netEventListener))

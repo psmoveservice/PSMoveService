@@ -1354,7 +1354,7 @@ void AppStage_ComputeTrackerPoses::request_tracker_start_stream(
     // Allocate a new tracker view
     const int tracker_id= TrackerInfo->tracker_id;
     trackerState.listIndex = listIndex;
-    PSM_AllocateTrackerListener(tracker_id, TrackerInfo);
+    PSM_AllocateTrackerListener(tracker_id);
     trackerState.trackerView = PSM_GetTracker(tracker_id);
     trackerState.textureAsset = nullptr;
 

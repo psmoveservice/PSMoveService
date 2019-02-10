@@ -109,6 +109,70 @@ enum HMDType {
     VirtualHMD = 1;
 }
 
+message ControllerInfo {
+    int32 controller_id= 1;
+    enum ConnectionType {
+        USB = 0;
+        BLUETOOTH = 1;
+    }
+    ConnectionType connection_type = 2;
+    ControllerType controller_type = 3;
+    ControllerHand controller_hand = 4;
+    TrackingColorType tracking_color_type = 5;
+    string device_path = 6;
+    string device_serial = 7;
+    string assigned_host_serial = 8;
+    string parent_controller_serial = 9;
+    int32 firmware_version = 10;
+    int32 firmware_revision = 11;
+    bool has_magnetometer = 12;
+    string orientation_filter = 13;
+    string position_filter = 14;
+    string gyro_gain_setting = 15;
+    float prediction_time = 16;
+    int32 gamepad_index = 17;
+}
+
+message TrackerInfo {
+    // ID of the tracker in the service
+    int32 tracker_id= 1;
+
+    // Tracker USB Properties
+    TrackerType tracker_type = 2;
+    TrackerDriver tracker_driver = 3;
+    string device_path = 4;
+
+    // Video Stream Properties
+    string shared_memory_name = 5;
+
+    // Camera Intrinsic Properties
+    Pixel tracker_focal_lengths = 6;
+    Pixel tracker_principal_point = 7;
+    Pixel tracker_screen_dimensions = 8;
+    float tracker_hfov = 9;
+    float tracker_vfov = 10;
+    float tracker_znear = 11;
+    float tracker_zfar = 12;
+    float tracker_k1= 13;
+    float tracker_k2= 14;
+    float tracker_k3= 15;
+    float tracker_p1= 16;
+    float tracker_p2= 17;
+
+    // Camera Extrinsic Properties
+    Pose tracker_pose = 18;
+}
+
+message HMDInfo {
+    int32 hmd_id= 1;
+    HMDType hmd_type = 2;
+    TrackingColorType tracking_color_type = 3;
+    string device_path = 4;
+    string orientation_filter = 5;
+    string position_filter = 6;            
+    float prediction_time = 7;
+}
+
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request.
@@ -136,7 +200,7 @@ message Request {
         SET_ATTACHED_CONTROLLER= 15;
         SET_GAMEPAD_INDEX= 16;
         SET_CONTROLLER_DATA_STREAM_TRACKER_INDEX = 17;
-		SET_CONTROLLER_HAND = 18;
+		    SET_CONTROLLER_HAND = 18;
 
         GET_TRACKER_LIST = 19;
         START_TRACKER_DATA_STREAM = 20;
@@ -543,20 +607,21 @@ message Response {
         PAIR_REQUEST_COMPLETED= 6;
         BLUETOOTH_REQUEST_PROGRESS= 7;
         TRACKER_LIST= 8;
-        TRACKER_LIST_UPDATED= 9;
-        TRACKER_SETTINGS= 10;
-        TRACKER_EXPOSURE_UPDATED= 11;
-        TRACKER_GAIN_UPDATED= 12;
-        TRACKER_OPTION_UPDATED= 13;
-        TRACKER_PRESET_UPDATED= 14;
-        TRACKING_SPACE_SETTINGS= 15;
-        HMD_LIST= 16;
-        HMD_LIST_UPDATED= 17;
-        SERVICE_VERSION= 18;
-        TRACKER_FRAME_RATE_UPDATED= 19;
-        TRACKER_FRAME_WIDTH_UPDATED= 20;
-        TRACKER_FRAME_HEIGHT_UPDATED= 21;
-        SYSTEM_BUTTON_PRESSED= 22;
+        TRACKER_STREAM_STARTED= 9;
+        TRACKER_LIST_UPDATED= 10;
+        TRACKER_SETTINGS= 11;
+        TRACKER_EXPOSURE_UPDATED= 12;
+        TRACKER_GAIN_UPDATED= 13;
+        TRACKER_OPTION_UPDATED= 14;
+        TRACKER_PRESET_UPDATED= 15;
+        TRACKING_SPACE_SETTINGS= 16;
+        HMD_LIST= 17;
+        HMD_LIST_UPDATED= 18;
+        SERVICE_VERSION= 19;
+        TRACKER_FRAME_RATE_UPDATED= 20;
+        TRACKER_FRAME_WIDTH_UPDATED= 21;
+        TRACKER_FRAME_HEIGHT_UPDATED= 22;
+        SYSTEM_BUTTON_PRESSED= 23;
     }
 
     enum ResultCode {
@@ -587,29 +652,6 @@ message Response {
     // Parameters for CONTROLLER_LIST
     // This is returned in response to a GET_CONTROLLER_LIST request
     message ResultControllerList {
-        message ControllerInfo {
-            int32 controller_id= 1;
-            enum ConnectionType {
-                USB = 0;
-                BLUETOOTH = 1;
-            }
-            ConnectionType connection_type = 2;
-            ControllerType controller_type = 3;
-            ControllerHand controller_hand = 4;
-            TrackingColorType tracking_color_type = 5;
-            string device_path = 6;
-            string device_serial = 7;
-            string assigned_host_serial = 8;
-            string parent_controller_serial = 9;
-            int32 firmware_version = 10;
-            int32 firmware_revision = 11;
-            bool has_magnetometer = 12;
-            string orientation_filter = 13;
-            string position_filter = 14;
-            string gyro_gain_setting = 15;
-            float prediction_time = 16;
-            int32 gamepad_index = 17;
-        }
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;
         int32 gamepad_count = 3;
@@ -631,39 +673,16 @@ message Response {
     // Parameters for TRACKER_LIST
     // This is returned in response to a GET_TRACKER_LIST request
     message ResultTrackerList {
-        message TrackerInfo {
-            // ID of the tracker in the service
-            int32 tracker_id= 1;
-
-            // Tracker USB Properties
-            TrackerType tracker_type = 2;
-            TrackerDriver tracker_driver = 3;
-            string device_path = 4;
-
-            // Video Stream Properties
-            string shared_memory_name = 5;
-
-            // Camera Intrinsic Properties
-            Pixel tracker_focal_lengths = 6;
-            Pixel tracker_principal_point = 7;
-            Pixel tracker_screen_dimensions = 8;
-            float tracker_hfov = 9;
-            float tracker_vfov = 10;
-            float tracker_znear = 11;
-            float tracker_zfar = 12;
-            float tracker_k1= 13;
-            float tracker_k2= 14;
-            float tracker_k3= 15;
-            float tracker_p1= 16;
-            float tracker_p2= 17;
-
-            // Camera Extrinsic Properties
-            Pose tracker_pose = 18;
-        }
         repeated TrackerInfo trackers = 1;
         float global_forward_degrees = 2;
     }
     ResultTrackerList result_tracker_list = 24;
+    
+    // Parameters for TRACKER_STREAM_STARTED
+    message ResultTrackerStreamStarted {
+        TrackerInfo tracker_info= 1;
+    }
+    ResultTrackerStreamStarted result_tracker_stream_started= 25;    
 
     // This is returned in response to a GET_TRACKER_SETTINGS or APPLY_TRACKER_PROFILE request
     message ResultTrackerSettings {
@@ -675,82 +694,73 @@ message Response {
         float frame_width= 6;
         float frame_height= 7;
     }
-    ResultTrackerSettings result_tracker_settings = 25;
+    ResultTrackerSettings result_tracker_settings = 26;
 
     // This is returned in response to a SET_TRACKER_EXPOSURE request
     message ResultSetTrackerExposure {
         float new_exposure= 1;
     }
-    ResultSetTrackerExposure result_set_tracker_exposure = 26;
+    ResultSetTrackerExposure result_set_tracker_exposure = 27;
 
     // This is returned in response to a SET_TRACKER_GAIN request
     message ResultSetTrackerGain {
         float new_gain= 1;
     }
-    ResultSetTrackerGain result_set_tracker_gain = 27;
+    ResultSetTrackerGain result_set_tracker_gain = 28;
 
     // This is returned in response to a SET_TRACKER_OPTION request
     message ResultSetTrackerOption {
         string option_name = 1;
         int32 new_option_index = 2;
     }
-    ResultSetTrackerOption result_set_tracker_option = 28;
+    ResultSetTrackerOption result_set_tracker_option = 29;
 
     // This is returned in response to a SET_TRACKER_COLOR_PRESET request
     message ResultSetTrackerColorPreset {
         int32 tracker_id = 1;
         TrackingColorPreset new_color_preset = 2;
     }
-    ResultSetTrackerColorPreset result_set_tracker_color_preset = 29;
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 30;
 
     // This is returned in response to a GET_TRACKING_SPACE_SETTINGS request
     message ResultTrackingSpaceSettings
     {
         float global_forward_degrees = 1;
     }
-    ResultTrackingSpaceSettings result_tracking_space_settings = 30;
+    ResultTrackingSpaceSettings result_tracking_space_settings = 31;
 
     // No parameters for HMD_LIST_UPDATED
 
     // Parameters for HMD_LIST
     // This is returned in response to a HMD_LIST request
     message ResultHMDList {
-        message HMDInfo {
-            int32 hmd_id= 1;
-            HMDType hmd_type = 2;
-            TrackingColorType tracking_color_type = 3;
-            string device_path = 4;
-            string orientation_filter = 5;
-            string position_filter = 6;            
-            float prediction_time = 7;
-        }
         repeated HMDInfo hmd_entries = 1;
     }
-    ResultHMDList result_hmd_list = 31;
+    ResultHMDList result_hmd_list = 32;
 
     // Parameters for SERVICE_VERSION
     message ResultServiceVersion{
         string version= 1;
     }
-    ResultServiceVersion result_service_version = 32;
+    ResultServiceVersion result_service_version = 33;
 
     // This is returned in response to a SET_TRACKER_FRAME_RATE request
     message ResultSetTrackerFrameRate {
         float new_frame_rate= 1;
     }
-    ResultSetTrackerFrameRate result_set_tracker_frame_rate = 33;
+    ResultSetTrackerFrameRate result_set_tracker_frame_rate = 34;
 
     // This is returned in response to a SET_TRACKER_FRAME_WIDTH request
     message ResultSetTrackerFrameWidth {
         float new_frame_width= 1;
     }
-    ResultSetTrackerFrameWidth result_set_tracker_frame_width = 34;
+    ResultSetTrackerFrameWidth result_set_tracker_frame_width = 35;
 
     // This is returned in response to a SET_TRACKER_FRAME_HEIGHT request
     message ResultSetTrackerFrameHeight {
         float new_frame_height= 1;
     }
-    ResultSetTrackerFrameHeight result_set_tracker_frame_height = 35;
+    ResultSetTrackerFrameHeight result_set_tracker_frame_height = 36;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients
