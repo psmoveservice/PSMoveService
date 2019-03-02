@@ -45,8 +45,8 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     MESSAGE(STATUS "Using homebrew Eigen3")
     find_package(Eigen3 REQUIRED CONFIG PATHS /usr/local/opt/eigen/lib/cmake/eigen3)
 ELSE()
-    LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
-    SET(ENV{EIGEN3_ROOT} "/usr/include/eigen3")
+    # LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
+    # SET(ENV{EIGEN3_ROOT} "/usr/include/eigen3")
     find_package(Eigen3 REQUIRED)
 ENDIF()
 
@@ -122,7 +122,7 @@ IF(NOT OpenCV_DIR)
         MESSAGE(STATUS "Using homebrew opencv3")
         set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
     ELSE()
-        set(OpenCV_DIR “/usr/local/share/OpenCV”)
+        set(OpenCV_DIR “/usr/share/OpenCV”)
     ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
 LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
@@ -157,15 +157,15 @@ find_package(Boost REQUIRED)  # Future targets can specify components.
 
 # Protobuf
 IF(MSVC)
-    set(PROTOBUF_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
+    set(Protobuf_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
     #PROTOBUF_IMPORT_DIRS ?
     # Default location of protobuf for Windows
     #SET(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "${ROOT_DIR}/thirdparty/protobuf")
 ENDIF(MSVC)
-set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Store original
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
+set(Protobuf_USE_STATIC_LIBS ON)
+set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
+# set(Protobuf_IMPORT_DIRS ${CMAKE_BINARY_DIR}/psmoveprotocol)
 find_package(Protobuf REQUIRED)
-set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Restore original
 include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # protobuf current generates many warnings in MacOS:
@@ -239,21 +239,22 @@ ENDIF()
 
 # hidapi
 set(HIDAPI_INCLUDE_DIRS ${ROOT_DIR}/thirdparty/hidapi/hidapi)
-set(HIDAPI_SRC)
-set(HIDAPI_LIBS)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
 ELSE()
-    list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
     find_package(PkgConfig REQUIRED)
+#   I tried using hidapi from apt-get but it didn't work.
+#    pkg_check_modules(HIDAPI REQUIRED hidapi-libusb)
+#    pkg_check_modules(HIDAPI REQUIRED hidapi-hidraw)
     pkg_check_modules(UDEV REQUIRED libudev)
-    list(APPEND HIDAPI_INCLUDE_DIRS ${UDEV_INCLUDE_DIRS})
-    list(APPEND HIDAPI_LIBS ${UDEV_LIBRARIES})
+    list(APPEND HIDAPI_INCLUDE_DIRS ${UDEV_INCLUDEDIR})
+    list(APPEND HIDAPI_LIBRARIES ${UDEV_LIBRARIES})
     pkg_check_modules(BLUEZ REQUIRED bluez)
-    list(APPEND HIDAPI_INCLUDE_DIRS ${BLUEZ_INCLUDE_DIRS})
-    list(APPEND HIDAPI_LIBS ${BLUEZ_LIBRARIES})
+    list(APPEND HIDAPI_INCLUDE_DIRS ${BLUEZ_INCLUDEDIR})
+    list(APPEND HIDAPI_LIBRARIES ${BLUEZ_LIBRARIES})
 ENDIF()
 
 
