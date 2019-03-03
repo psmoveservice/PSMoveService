@@ -37,10 +37,10 @@ ENDIF()
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     # TODO: Convert this to ExternalProject_Add
     # Can manually set EIGEN3_INCLUDE_DIR to "${ROOT_DIR}/thirdparty/eigen
-    MESSAGE(STATUS "Using Eigen3 in submodule")
-    LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
-    SET(ENV{EIGEN3_ROOT} "${ROOT_DIR}/thirdparty/eigen")
-    find_package(Eigen3 REQUIRED)
+    # MESSAGE(STATUS "Using Eigen3 in submodule")
+    # LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
+    # SET(ENV{EIGEN3_ROOT} "${ROOT_DIR}/thirdparty/eigen")
+    find_package(Eigen3 CONFIG REQUIRED)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     MESSAGE(STATUS "Using homebrew Eigen3")
     find_package(Eigen3 REQUIRED CONFIG PATHS /usr/local/opt/eigen/lib/cmake/eigen3)
@@ -54,69 +54,7 @@ ENDIF()
 # OpenCV
 # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
 IF(NOT OpenCV_DIR)
-    IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        ExternalProject_Add(opencv
-          PREFIX ${ROOT_DIR}/deps/opencv
-          GIT_REPOSITORY https://github.com/opencv/opencv.git
-          GIT_SHALLOW 1
-          GIT_TAG 3.1.0
-          CMAKE_GENERATOR ${gen}
-          CMAKE_ARGS
-            -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-            -DCMAKE_INCLUDE_PATH=${ROOT_DIR}/deps/local/include
-            -DCMAKE_LIBRARY_PATH=${ROOT_DIR}/deps/local/lib
-            -DBUILD_WITH_STATIC_CRT:BOOL=ON
-            -DBUILD_SHARED_LIBS:BOOL=OFF
-            -DBUILD_DOCS:BOOL=OFF
-            -DBUILD_EXAMPLES:BOOL=OFF
-            -DBUILD_TESTS:BOOL=OFF
-            -DBUILD_PERF_TESTS:BOOL=OFF
-            #-DCMAKE_BUILD_TYPE:STRING=Release
-            -DWITH_FFMPEG:BOOL=OFF
-            -DWITH_OPENEXR:BOOL=OFF
-            -DWITH_JASPER:BOOL=OFF
-            -DWITH_TIFF:BOOL=OFF
-            -DWITH_IPP:BOOL=OFF
-            -DBUILD_opencv_apps:BOOL=OFF
-            -DBUILD_opencv_calib3d:BOOL=ON
-            -DBUILD_opencv_flann:BOOL=ON
-            -DBUILD_opencv_features2d:BOOL=ON
-            -DBUILD_opencv_objdetect:BOOL=ON
-            -DBUILD_opencv_photo:BOOL=ON
-            -DBUILD_opencv_ts:BOOL=OFF
-            -DBUILD_opencv_ml:BOOL=ON
-            -DBUILD_opencv_video:BOOL=ON
-            -DBUILD_opencv_java:BOOL=OFF
-            -DBUILD_opencv_python2:BOOL=OFF
-            -DBUILD_opencv_python3:BOOL=OFF
-            -DPYTHON2_LIBRARY:STRING=C:/Python27/libs/python27.lib
-            -DPYTHON3_LIBRARY:STRING=C:/Python35/libs/python35.lib
-          INSTALL_DIR ${ROOT_DIR}/deps/local/
-        )
-
-        add_definitions(-DHAS_OPENCV)
-
-        set(OpenCV_DIR ${ROOT_DIR}/deps/local)
-        set(OpenCV_INCLUDE_DIRS ${ROOT_DIR}/deps/local/include )
-        if (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
-            set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x64/vc14/staticlib)
-        else()
-            set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x86/vc14/staticlib)
-        endif()
-
-        foreach(__CVLIB core calib3d features2d flann imgproc imgcodecs ml highgui objdetect video videoio)
-            set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310d.lib optimized ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310.lib CACHE STRING "" FORCE)
-            set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
-        endforeach(__CVLIB)    
-
-        foreach(__CVLIB libjpeg libpng libwebp zlib)
-            set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/${__CVLIB}d.lib optimized ${OPENCV_LIBS_DIR}/${__CVLIB}.lib CACHE STRING "" FORCE)
-            set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
-        endforeach(__CVLIB)     
-
-        LIST(APPEND OpenCV_LIBS vfw32.lib)
-
-    ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         # Location of homebrew opencv3's OpenCVConfig.cmake
         # Alternatively, can do `brew ln opencv3 --force`
         MESSAGE(STATUS "Using homebrew opencv3")
@@ -124,23 +62,14 @@ IF(NOT OpenCV_DIR)
     ELSE()
         set(OpenCV_DIR “/usr/share/OpenCV”)
     ENDIF()#Windows or Darwin
+	LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 ENDIF(NOT OpenCV_DIR)
-LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 set(OpenCV_STATIC ON)
-IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
-    FIND_PACKAGE(OpenCV REQUIRED)
-ENDIF()
+FIND_PACKAGE(OpenCV REQUIRED)
 
 
 # Boost
 IF(MSVC)
-    # Default location of pre-compiled Boost for Windows
-    # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-14.0\" to your cmake command
-    IF (NOT BOOST_ROOT)
-        SET(BOOST_ROOT "C:/local/boost_1_61_0/")
-        SET(BOOST_LIBRARYDIR "C:/local/boost_1_61_0/lib32-msvc-14.0/")
-    ENDIF()
-
     # Disable asio auto linking in date-time and regex
     add_definitions(-DBOOST_DATE_TIME_NO_LIB)
     add_definitions(-DBOOST_REGEX_NO_LIB)
@@ -156,16 +85,22 @@ find_package(Boost REQUIRED)  # Future targets can specify components.
 
 
 # Protobuf
-IF(MSVC)
-    set(Protobuf_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
+set(Protobuf_USE_STATIC_LIBS ON)
+set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
+#IF(MSVC)
+    #set(Protobuf_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
     #PROTOBUF_IMPORT_DIRS ?
     # Default location of protobuf for Windows
     #SET(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "${ROOT_DIR}/thirdparty/protobuf")
-ENDIF(MSVC)
-set(Protobuf_USE_STATIC_LIBS ON)
-set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
+#ENDIF(MSVC)
 # set(Protobuf_IMPORT_DIRS ${CMAKE_BINARY_DIR}/psmoveprotocol)
-find_package(Protobuf REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
+#target_link_libraries(main PRIVATE protobuf::libprotoc protobuf::libprotobuf)
+
+# TODO: How to use protoc? 
+#protobuf::protoc PROPERTIES
+#  IMPORTED_LOCATION_RELEASE
+
 include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # protobuf current generates many warnings in MacOS:
@@ -175,12 +110,13 @@ ENDIF()
 
 
 # SDL and GL
-set(SDL_GL_INCLUDE_DIRS)
-set(SDL_GL_LIBS)
+#set(SDL_GL_INCLUDE_DIRS)
+#set(SDL_GL_LIBS)
+message(STATUS "ThirdParty.cmake finding SDL")
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(OPENGL_FRAMEWORK OpenGL)
     find_package(SDL2)
-    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+    set(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
     list(APPEND SDL_GL_LIBS
         ${SDL2_LIBRARY} ${OPENGL_FRAMEWORK} ${GLUT_FRAMEWORK})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -188,13 +124,12 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
     list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    SET(ENV{SDL2DIR} ${ROOT_DIR}/thirdparty/SDL2/)
-    find_package(SDL2)
-    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-    list(APPEND SDL_GL_LIBS 
-        ${SDL2_LIBRARY}
-        imm32.lib
-        version.lib)
+    find_package(SDL2 CONFIG REQUIRED)
+    #list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+    #list(APPEND SDL_GL_LIBS 
+    #    ${SDL2_LIBRARY}
+    #    imm32.lib
+    #    version.lib)
 ENDIF()
 
 

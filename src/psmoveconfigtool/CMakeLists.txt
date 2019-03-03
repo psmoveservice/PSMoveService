@@ -27,8 +27,8 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
     ${PROTOBUF_LIBRARIES})
     
 # SDL/GL
-list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL_GL_INCLUDE_DIRS})
-list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${SDL_GL_LIBS})
+#list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL_GL_INCLUDE_DIRS})
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS SDL2::SDL2main SDL2::SDL2-static)
 
 # OpenCV
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
@@ -43,12 +43,8 @@ file(GLOB PSMOVECONFIGTOOL_SRC
 
 # PSMoveConfigTool
 add_executable(PSMoveConfigTool ${PSMOVECONFIGTOOL_SRC})
-target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS})
-target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
-
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-add_dependencies(PSMoveService opencv)
-ENDIF()
+target_include_directories(PSMoveConfigTool PRIVATE ${PSMOVECONFIGTOOL_INCL_DIRS})
+target_link_libraries(PSMoveConfigTool PRIVATE ${PSMOVECONFIGTOOL_REQ_LIBS})
 
 # Allow access to the protocol buffers (extracting response parameters)
 target_compile_definitions(PSMoveConfigTool

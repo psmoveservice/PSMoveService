@@ -152,6 +152,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/lockfreequeue)
 
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS Eigen3::Eigen)
 
 # mherb/Kalman library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
@@ -164,7 +165,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 
 # Protobuf (already found in top-level CMakeLists)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
-list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 
 # Boost. TODO: Trim this list.
 find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
@@ -208,12 +209,13 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PSEYE_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PSEYE_LIBRARIES})
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
-target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
-target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
+target_include_directories(PSMoveService PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_include_directories(PSMoveService PRIVATE ${PSMOVE_SERVICE_INCL_DIRS})
+target_link_libraries(PSMoveService PRIVATE ${PSMOVE_SERVICE_REQ_LIBS})
 
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(PSMoveService opencv)
-ENDIF()
+#IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+#    add_dependencies(PSMoveService opencv)
+#ENDIF()
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -253,10 +255,8 @@ ENDIF()
 IF(MSVC)
 	# Create the new PSMS admin exe (same code as PSMS)
 	add_executable(PSMoveServiceAdmin ${PSMOVESERVICE_SRC})
-	target_include_directories(PSMoveServiceAdmin PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
+	target_include_directories(PSMoveServiceAdmin PRIVATE ${PSMOVE_SERVICE_INCL_DIRS})
 	target_link_libraries(PSMoveServiceAdmin ${PSMOVE_SERVICE_REQ_LIBS})
-	
-	add_dependencies(PSMoveServiceAdmin opencv)
 	
 	# set the UAC level in the property sheet
     set_target_properties(PSMoveServiceAdmin PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")

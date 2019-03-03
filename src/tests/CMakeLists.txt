@@ -50,9 +50,6 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(test_camera opencv)
-ENDIF()
 SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
     
 # The test_camera_parallel app
@@ -60,9 +57,6 @@ IF((${CMAKE_SYSTEM_NAME} MATCHES "Windows") OR (${CMAKE_SYSTEM_NAME} MATCHES "Da
     add_executable(test_camera_parallel ${CMAKE_CURRENT_LIST_DIR}/test_camera_parallel.cpp ${TEST_CAMERA_SRC})
     target_include_directories(test_camera_parallel PUBLIC ${TEST_CAMERA_INCL_DIRS})
     target_link_libraries(test_camera_parallel ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
-    IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        add_dependencies(test_camera_parallel opencv)
-    ENDIF()
     SET_TARGET_PROPERTIES(test_camera_parallel PROPERTIES FOLDER Test)
 ENDIF()
 
