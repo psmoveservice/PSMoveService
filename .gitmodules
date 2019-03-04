@@ -1,6 +1,3 @@
-[submodule "thirdparty/libusb"]
-	path = thirdparty/libusb
-	url = https://github.com/libusb/libusb.git
 [submodule "thirdparty/hidapi"]
 	path = thirdparty/hidapi
 	url = https://github.com/signal11/hidapi.git
@@ -18,18 +15,9 @@
 [submodule "thirdparty/protobuf"]
 	path = thirdparty/protobuf
 	url = https://github.com/google/protobuf.git
-[submodule "thirdparty/imgui"]
-	path = thirdparty/imgui
-	url = https://github.com/ocornut/imgui.git
 [submodule "thirdparty/stb"]
 	path = thirdparty/stb
 	url = https://github.com/nothings/stb.git
-[submodule "thirdparty/SDL2"]
-	path = thirdparty/SDL2
-	url = https://github.com/spurious/SDL-mirror.git
-[submodule "thirdparty/eigen"]
-	path = thirdparty/eigen
-	url = https://github.com/libigl/eigen.git
 [submodule "thirdparty/kalman"]
 	path = thirdparty/kalman
 	url = https://github.com/mherb/kalman.git
