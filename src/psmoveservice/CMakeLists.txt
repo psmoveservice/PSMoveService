@@ -151,7 +151,6 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/lockfreequeue)
 
 # Eigen math library
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS Eigen3::Eigen)
 
 # mherb/Kalman library
@@ -164,7 +163,6 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/type_index/include/)
 
 # Protobuf (already found in top-level CMakeLists)
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 
 # Boost. TODO: Trim this list.
@@ -197,10 +195,8 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 # Tracker
 # Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
-# OpenCV - empty on Windows
-IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
-ENDIF()
+# OpenCV
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
 
 # PS Eye - This brings in LIBUSB on Windows and Mac, but not Linux
@@ -209,13 +205,8 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PSEYE_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PSEYE_LIBRARIES})
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
-target_include_directories(PSMoveService PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(PSMoveService PRIVATE ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService PRIVATE ${PSMOVE_SERVICE_REQ_LIBS})
-
-#IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-#    add_dependencies(PSMoveService opencv)
-#ENDIF()
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

@@ -9,22 +9,20 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${Boost_LIBRARIES})
 
 # platform independent include paths
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
-    ${EIGEN3_INCLUDE_DIR}
-    ${ROOT_DIR}/thirdparty/glm
     ${ROOT_DIR}/thirdparty/sparseicp
     ${ROOT_DIR}/thirdparty/stb
-    ${ROOT_DIR}/thirdparty/imgui
     ${ROOT_DIR}/src/psmoveclient/
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveprotocol/
-    ${PROTOBUF_INCLUDE_DIRS})
+)
 
 # platform independent libraries
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
     PSMoveClient_CAPI
     PSMoveMath
     PSMoveProtocol
-    ${PROTOBUF_LIBRARIES})
+	Eigen3::Eigen
+    protobuf::libprotoc protobuf::libprotobuf)
     
 # SDL/GL
 #list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL_GL_INCLUDE_DIRS})
@@ -34,11 +32,14 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS SDL2::SDL2main SDL2::SDL2-static)
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OpenCV_LIBS})
 
+#ImGui
+find_package(imgui CONFIG REQUIRED)
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS imgui::imgui)
+
 # Source files that are needed for the psmove config tool
 file(GLOB PSMOVECONFIGTOOL_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
-    "${ROOT_DIR}/thirdparty/imgui/*.cpp"
 )
 
 # PSMoveConfigTool

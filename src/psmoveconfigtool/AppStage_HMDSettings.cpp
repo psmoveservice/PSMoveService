@@ -137,7 +137,6 @@ void AppStage_HMDSettings::renderUI()
 {
     const char *k_window_title = "HMD Settings";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

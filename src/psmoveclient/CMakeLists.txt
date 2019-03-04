@@ -7,29 +7,31 @@ include (GenerateExportHeader)
 
 set(CMAKE_INSTALL_PREFIX ${ROOT_DIR}/dist)
 
-set(PSMOVE_CLIENT_INCL_DIRS)
-set(PSMOVE_CLIENT_REQ_LIBS)
+set(PSMOVECLIENT_LIBRARY_SRC)
+set(PSMOVECLIENT_INCL_DIRS)
+set(PSMOVECLIENT_REQ_LIBS)
 
-list(APPEND PSMOVE_CLIENT_INCL_DIRS
-    ${ROOT_DIR}/thirdparty/Boost.Application/include/
-    ${ROOT_DIR}/thirdparty/type_index/include/)
+list(APPEND PSMOVECLIENT_INCL_DIRS
+	${ROOT_DIR}/thirdparty/type_index/include/
+    ${ROOT_DIR}/thirdparty/Boost.Application/include/)
+# https://github.com/cboulay/PSMoveService/issues/39 ?
 
 # Protobuf
-list(APPEND PSMOVE_CLIENT_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
-list(APPEND PSMOVE_CLIENT_REQ_LIBS ${PROTOBUF_LIBRARIES})
+list(APPEND PSMOVECLIENT_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 
 # Boost
 find_package(Boost REQUIRED QUIET COMPONENTS system)
-list(APPEND PSMOVE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
-list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND PSMOVECLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND PSMOVECLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
 # PSMoveProtocol
-include_directories(${ROOT_DIR}/src/psmoveprotocol/)
-list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveProtocol)
+# Alternatively, could do: list(APPEND PSMOVECLIENT_LIBRARY_SRC) $<TARGET_OBJECTS:PSMoveProtocol>?
+list(APPEND PSMOVECLIENT_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
+list(APPEND PSMOVECLIENT_REQ_LIBS PSMoveProtocol)
 
 # PSMoveMath
-include_directories(${ROOT_DIR}/src/psmovemath/)
-list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveMath)
+list(APPEND PSMOVECLIENT_INCL_DIRS ${ROOT_DIR}/src/psmovemath/)
+list(APPEND PSMOVECLIENT_REQ_LIBS PSMoveMath)
 
 # Source files that are needed for the shared library
 file(GLOB PSMOVECLIENT_LIBRARY_SRC
@@ -37,37 +39,23 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
 )
 
-# TODO: Build PSMoveClient as a STATIC or OBJECT w/ $<TARGET_OBJECTS:objlib>
-add_library(PSMoveClient_static STATIC ${PSMOVECLIENT_LIBRARY_SRC})
-target_include_directories(PSMoveClient_static PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
-target_link_libraries(PSMoveClient_static PUBLIC ${PLATFORM_LIBS} ${PSMOVE_CLIENT_REQ_LIBS})
-target_compile_definitions(PSMoveClient_static PRIVATE PSMOVECLIENT_CPP_API)
-target_compile_definitions(PSMoveClient_static PRIVATE PSMoveClient_STATIC)
-# set_target_properties(PSMoveClient_static PROPERTIES COMPILE_FLAGS "-DBUILDING_STATIC_LIBRARY -fPIC")
-#
-# PSMoveClient_CAPI Shared library
-#
-set(PSMOVE_CLIENT_CAPI_REQ_LIBS)
+# Build PSMoveClient CPP SHARED library.
+add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
+target_include_directories(PSMoveClient PRIVATE ${PSMOVECLIENT_INCL_DIRS})
+target_link_libraries(PSMoveClient PRIVATE ${PLATFORM_LIBS} ${PSMOVECLIENT_REQ_LIBS})
+set_target_properties(PSMoveClient PROPERTIES PUBLIC_HEADER "ClientConstants.h;PSMoveClient_export.h; PSMoveClient.h")
+target_compile_definitions(PSMoveClient PRIVATE PSMoveClient_EXPORTS)
+target_compile_definitions(PSMoveClient PRIVATE PSMOVECLIENT_CPP_API)
 
-# PSMoveClient_static
-list(APPEND PSMOVE_CLIENT_CAPI_REQ_LIBS PSMoveClient_static)
-#Via PSMoveClient_static, transitively inherits PSMoveProtocol < Protobuf, Boost, PSMoveMath
-
-# Source files to develop the shared library.
-list(APPEND PSMOVECLIENT_CAPI_LIBRARY_SRC
-    "${CMAKE_CURRENT_LIST_DIR}/PSMoveClient_export.h"
-    "${CMAKE_CURRENT_LIST_DIR}/PSMoveClient_CAPI.h"
-    "${CMAKE_CURRENT_LIST_DIR}/PSMoveClient_CAPI.cpp"
-)
-
-# Shared library
+# Build PSMoveClient_CAPI SHARED library.
 add_library(PSMoveClient_CAPI SHARED ${PSMOVECLIENT_LIBRARY_SRC})
-target_include_directories(PSMoveClient_CAPI PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_link_libraries(PSMoveClient_CAPI PRIVATE ${PSMOVE_CLIENT_CAPI_REQ_LIBS})
+target_include_directories(PSMoveClient_CAPI PRIVATE ${PSMOVECLIENT_INCL_DIRS})
+target_link_libraries(PSMoveClient_CAPI PRIVATE ${PLATFORM_LIBS} ${PSMOVECLIENT_REQ_LIBS})
 set_target_properties(PSMoveClient_CAPI PROPERTIES PUBLIC_HEADER "ClientConstants.h;ClientGeometry_CAPI.h;PSMoveClient_CAPI.h;PSMoveClient_export.h")
 set_target_properties(PSMoveClient_CAPI PROPERTIES CXX_VISIBILITY_PRESET hidden)
 set_target_properties(PSMoveClient_CAPI PROPERTIES C_VISIBILITY_PRESET hidden)
-# set_target_properties(PSMoveClient_CAPI PROPERTIES COMPILE_FLAGS "-fPIC")
+target_compile_definitions(PSMoveClient_CAPI PRIVATE PSMoveClient_CAPI_EXPORTS)
+
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

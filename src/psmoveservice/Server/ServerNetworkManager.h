@@ -6,13 +6,13 @@
 #include "PSMoveConfig.h"
 
 //-- pre-declarations -----
-class ServerRequestHandler;
-
 namespace boost {
-    namespace asio {
-        class io_service;
-    }
+	namespace asio {
+		class io_context;
+	}
 }
+
+class ServerRequestHandler;
 
 //-- definitions -----
 class NetworkManagerConfig : public PSMoveConfig
@@ -37,7 +37,7 @@ class ServerNetworkManager
 public:
     /// Used in PSMoveService::m_network_manager
     /**
-     \param io_service Uses default initializer of boost::asio::io_service
+     \param io_context Uses default initializer of boost::asio::io_context
      \param request_handler Default ServerRequestHandler(ControllerManager)
      */
     ServerNetworkManager();
@@ -49,7 +49,7 @@ public:
     /**
      Calls ServerNetworkManagerImpl::start_connection_accept()
      */
-    bool startup(boost::asio::io_service *io_service, ServerRequestHandler *request_handler);
+    bool startup(boost::asio::io_context *io_context, ServerRequestHandler *request_handler);
     
     /// Called last by PSMoveService::update()
     /**

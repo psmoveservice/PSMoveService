@@ -328,7 +328,6 @@ void AppStage_ControllerSettings::renderUI()
 {
     const char *k_window_title= "Controller Settings";
     const ImGuiWindowFlags window_flags = 
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize | 
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
@@ -341,8 +340,9 @@ void AppStage_ControllerSettings::renderUI()
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(350, 490));
             ImGui::Begin("Controller Settings", nullptr, window_flags | ImGuiWindowFlags_MenuBar);
+			
 
-            if (ImGui::CollapsingHeader("Host Info", 0, true, true))
+            if (ImGui::CollapsingHeader("Host Info", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed))
             {
                 if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
                 {
@@ -358,7 +358,7 @@ void AppStage_ControllerSettings::renderUI()
             {
                 ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
 
-                if (ImGui::CollapsingHeader("Controller Settings", 0, true, true))
+                if (ImGui::CollapsingHeader("Controller Settings", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed))
                 {
                     if (m_selectedControllerIndex > 0)
                     {
@@ -513,7 +513,7 @@ void AppStage_ControllerSettings::renderUI()
 				    if (!m_app->excludePositionSettings &&
 						(controllerInfo.IsBluetooth || controllerInfo.ControllerType == PSMController_Virtual))
                     {
-                        if (ImGui::CollapsingHeader("Filters", 0, true, false))
+                        if (ImGui::CollapsingHeader("Filters", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed))
                         {
 					        if ((controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth) ||
 						        controllerInfo.ControllerType == PSMController_Virtual)
@@ -593,7 +593,10 @@ void AppStage_ControllerSettings::renderUI()
 
 				if (controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth)
                 {
-					if (ImGui::CollapsingHeader("Controller Calibration", 0, true, m_app->excludePositionSettings))
+					ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed;
+					if (m_app->excludePositionSettings)
+						flags |= ImGuiTreeNodeFlags_DefaultOpen;
+					if (ImGui::CollapsingHeader("Controller Calibration", flags))
 					{
 						if (controllerInfo.HasMagnetometer)
 						{
@@ -625,7 +628,10 @@ void AppStage_ControllerSettings::renderUI()
 
 				if (controllerInfo.IsBluetooth || controllerInfo.ControllerType == PSMController_Virtual)
 				{
-					if (ImGui::CollapsingHeader("Controller Tests", 0, true, m_app->excludePositionSettings))
+					ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed;
+					if (m_app->excludePositionSettings)
+						flags |= ImGuiTreeNodeFlags_DefaultOpen;
+					if (ImGui::CollapsingHeader("Controller Tests", flags))
 					{
 						if (controllerInfo.ControllerType == PSMController_Move)
 						{

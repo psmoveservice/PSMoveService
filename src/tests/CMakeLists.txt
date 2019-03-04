@@ -195,6 +195,7 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+list(APPEND TEST_PSMOVE_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_PSMOVE_REQ_LIBS PSMoveProtocol)
 
@@ -310,6 +311,7 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+list(APPEND TEST_NAVI_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_NAVI_REQ_LIBS PSMoveProtocol)
 
@@ -434,6 +436,7 @@ list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_DS4_CTRLR_REQ_LIBS PSMoveProtocol)
 

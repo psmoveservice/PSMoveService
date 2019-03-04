@@ -1,5 +1,7 @@
 # IDE Generated files
 *.suo
+.vs/
+CMakeSettings.json
 
 # Compiled Object files
 *.slo

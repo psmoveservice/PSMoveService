@@ -1,6 +1,4 @@
-# When not using MSVC, we recommend using system-wide libraries
-# (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
-# In MSVC, we auto-download the source and make it an external_project
+# This is where we find thirdparty libraries and packages that are common to two or more targets.
 
 # Platform specific libraries
 SET(PLATFORM_LIBS)
@@ -35,20 +33,15 @@ ENDIF()
 
 # Eigen3
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    # TODO: Convert this to ExternalProject_Add
-    # Can manually set EIGEN3_INCLUDE_DIR to "${ROOT_DIR}/thirdparty/eigen
-    # MESSAGE(STATUS "Using Eigen3 in submodule")
-    # LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
-    # SET(ENV{EIGEN3_ROOT} "${ROOT_DIR}/thirdparty/eigen")
     find_package(Eigen3 CONFIG REQUIRED)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     MESSAGE(STATUS "Using homebrew Eigen3")
     find_package(Eigen3 REQUIRED CONFIG PATHS /usr/local/opt/eigen/lib/cmake/eigen3)
 ELSE()
-    # LIST(APPEND CMAKE_MODULE_PATH "${ROOT_DIR}/thirdparty/eigen/cmake")
-    # SET(ENV{EIGEN3_ROOT} "/usr/include/eigen3")
-    find_package(Eigen3 REQUIRED)
+    find_package(Eigen3 REQUIRED)  # TODO: Test as CONFIG
 ENDIF()
+# Use with:
+# target_link_libraries(main PRIVATE Eigen3::Eigen)
 
 
 # OpenCV
@@ -62,11 +55,13 @@ IF(NOT OpenCV_DIR)
     ELSE()
         set(OpenCV_DIR “/usr/share/OpenCV”)
     ENDIF()#Windows or Darwin
-	LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
+    LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 ENDIF(NOT OpenCV_DIR)
 set(OpenCV_STATIC ON)
 FIND_PACKAGE(OpenCV REQUIRED)
-
+# Use with:
+#target_include_directories(main PRIVATE ${OpenCV_INCLUDE_DIRS})
+#target_link_libraries(main PRIVATE ${OpenCV_LIBS})
 
 # Boost
 IF(MSVC)
@@ -78,30 +73,27 @@ IF(MSVC)
 ENDIF()
 SET(Boost_DEBUG                OFF) #Switch this and next to ON for help debugging Boost problems.
 SET(Boost_DETAILED_FAILURE_MSG OFF)
-set(Boost_USE_STATIC_LIBS      ON) # only find static libs
+set(Boost_USE_STATIC_LIBS      OFF) # only find static libs
 set(Boost_USE_MULTITHREADED    ON)
-set(Boost_USE_STATIC_RUNTIME   ON) #Not default. Because our app is linking against static runtime (see above).
-find_package(Boost REQUIRED)  # Future targets can specify components.
+set(Boost_USE_STATIC_RUNTIME   OFF) # Default = OFF
+find_package(Boost REQUIRED)
+# Because the version of Boost supported depends on cmake and can often lag behind,
+# we cannot use (e.g.) target_link_libraries(${target} Boost::filesystem)
+# So, use:
+# find_package(Boost REQUIRED COMPONENTS <list of components>)
+# target_include_directories(${target} ${Boost_INCLUDE_DIRS})
+# target_link_libraries(${target} ${Boost_LIBRARIES})
 
 
 # Protobuf
 set(Protobuf_USE_STATIC_LIBS ON)
 set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
-#IF(MSVC)
-    #set(Protobuf_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
-    #PROTOBUF_IMPORT_DIRS ?
-    # Default location of protobuf for Windows
-    #SET(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "${ROOT_DIR}/thirdparty/protobuf")
-#ENDIF(MSVC)
-# set(Protobuf_IMPORT_DIRS ${CMAKE_BINARY_DIR}/psmoveprotocol)
 find_package(Protobuf CONFIG REQUIRED)
-#target_link_libraries(main PRIVATE protobuf::libprotoc protobuf::libprotobuf)
+# Use with:
+# target_link_libraries(main PRIVATE protobuf::libprotoc protobuf::libprotobuf)
+# Also, .proto files can be added to a target with:
+# protobuf_generate(TARGET ${target} PROTOS ${my.proto})
 
-# TODO: How to use protoc? 
-#protobuf::protoc PROPERTIES
-#  IMPORTED_LOCATION_RELEASE
-
-include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # protobuf current generates many warnings in MacOS:
     #'OSMemoryBarrier' is deprecated: first deprecated in macOS 10.12 - Use std::atomic_thread_fence() from <atomic> instead
@@ -125,12 +117,9 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     find_package(SDL2 CONFIG REQUIRED)
-    #list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-    #list(APPEND SDL_GL_LIBS 
-    #    ${SDL2_LIBRARY}
-    #    imm32.lib
-    #    version.lib)
 ENDIF()
+# Use with:
+# target_link_libraries(main PRIVATE SDL2::SDL2 SDL2::SDL2main)
 
 
 # For PSEye camera

@@ -392,7 +392,6 @@ void AppStage_GyroscopeCalibration::renderUI()
     const float k_panel_width = 500;
     const char *k_window_title = "Gyroscope Calibration";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

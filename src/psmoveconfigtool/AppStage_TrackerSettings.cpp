@@ -167,7 +167,6 @@ void AppStage_TrackerSettings::renderUI()
 {
     const char *k_window_title = "Tracker Settings";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
