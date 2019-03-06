@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.12)
 set(PSMOVEPROTOCOL_LIBRARY_SRC)    # Container for source files
 
 # Source files and headers
@@ -6,13 +7,14 @@ file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
 )
 
-# Static library
-add_library(PSMoveProtocol SHARED ${PSMOVEPROTOCOL_LIBRARY_SRC})
+# PSMoveProtocol library
+add_library(PSMoveProtocol OBJECT ${PSMOVEPROTOCOL_LIBRARY_SRC})
+# A newish version of cmake is required to be able to link a library
+# to an OBJECT library.
 target_link_libraries(PSMoveProtocol PRIVATE ${Protobuf_LIBRARIES})
 protobuf_generate(
     TARGET PSMoveProtocol
     PROTOS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto)
-# Anything that links PSMoveProtocol needs access to the generated pb.h file.
 target_include_directories(PSMoveProtocol
     PUBLIC
         ${CMAKE_CURRENT_BINARY_DIR}
