@@ -30,6 +30,10 @@ ELSE() #Linux
     list(APPEND PLATFORM_LIBS rt)
 ENDIF()
 
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    find_package(PkgConfig REQUIRED)
+ENDIF()
+
 
 # Eigen3
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -86,11 +90,11 @@ find_package(Boost REQUIRED)
 
 
 # Protobuf
-set(Protobuf_USE_STATIC_LIBS ON)
 set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
-find_package(Protobuf CONFIG REQUIRED)
+find_package(Protobuf REQUIRED)
 # Use with:
-# target_link_libraries(main PRIVATE protobuf::libprotoc protobuf::libprotobuf)
+# target_include_directories(${target} ${Protobuf_INCLUDE_DIRS})
+# target_link_libraries(${target} ${Protobuf_LIBRARIES})
 # Also, .proto files can be added to a target with:
 # protobuf_generate(TARGET ${target} PROTOS ${my.proto})
 
@@ -112,14 +116,15 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND SDL_GL_LIBS
         ${SDL2_LIBRARY} ${OPENGL_FRAMEWORK} ${GLUT_FRAMEWORK})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    find_package(SDL2)
-    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-    list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
+    find_package(SDL2 CONFIG REQUIRED)
+#    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+#    list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     find_package(SDL2 CONFIG REQUIRED)
 ENDIF()
 # Use with:
-# target_link_libraries(main PRIVATE SDL2::SDL2 SDL2::SDL2main)
+# target_include_directories(main ${SDL2_INCLUDE_DIRS})
+# target_link_libraries(main PRIVATE ${SDL2_LIBRARIES})
 
 
 # For PSEye camera
@@ -169,7 +174,6 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
-    find_package(PkgConfig REQUIRED)
 #   I tried using hidapi from apt-get but it didn't work.
 #    pkg_check_modules(HIDAPI REQUIRED hidapi-libusb)
 #    pkg_check_modules(HIDAPI REQUIRED hidapi-hidraw)

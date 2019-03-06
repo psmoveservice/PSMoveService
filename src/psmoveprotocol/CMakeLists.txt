@@ -7,17 +7,18 @@ file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
 )
 
 # Static library
-add_library(PSMoveProtocol OBJECT ${PSMOVEPROTOCOL_LIBRARY_SRC})
-target_link_libraries(PSMoveProtocol
-    PRIVATE
-        protobuf::libprotoc
-        protobuf::libprotobuf
-)
+add_library(PSMoveProtocol SHARED ${PSMOVEPROTOCOL_LIBRARY_SRC})
+target_link_libraries(PSMoveProtocol PRIVATE ${Protobuf_LIBRARIES})
 protobuf_generate(
     TARGET PSMoveProtocol
     PROTOS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto)
 # Anything that links PSMoveProtocol needs access to the generated pb.h file.
-target_include_directories(PSMoveProtocol PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(PSMoveProtocol
+    PUBLIC
+        ${CMAKE_CURRENT_BINARY_DIR}
+    PRIVATE
+        ${Protobuf_INCLUDE_DIRS}
+)
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
