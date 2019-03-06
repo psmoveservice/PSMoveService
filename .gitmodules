@@ -23,7 +23,7 @@
 	url = https://github.com/mherb/kalman.git
 [submodule "thirdparty/libstem_gamepad"]
 	path = thirdparty/libstem_gamepad
-	url = https://github.com/cboulay/libstem_gamepad.git
+	url = https://github.com/psmoveservice/libstem_gamepad.git
 [submodule "thirdparty/lockfreequeue"]
 	path = thirdparty/lockfreequeue
 	url = https://github.com/cameron314/readerwriterqueue.git
