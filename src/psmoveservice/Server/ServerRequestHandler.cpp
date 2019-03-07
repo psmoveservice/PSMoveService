@@ -132,7 +132,8 @@ public:
 
                 connection_state->pending_bluetooth_request->update();
 
-                switch(connection_state->pending_bluetooth_request->getStatusCode())
+                AsyncBluetoothRequest::eStatusCode status = connection_state->pending_bluetooth_request->getStatusCode();
+                switch(status)
                 {
                 case AsyncBluetoothRequest::running:
                     {

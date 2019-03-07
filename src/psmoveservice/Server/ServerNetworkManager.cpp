@@ -105,7 +105,7 @@ public:
         return ClientConnectionPtr(
             new ClientConnection(
                 network_event_listener, 
-                io_context_ref, 
+                io_context_ref,
                 udp_socket_ref, 
                 request_handler_ref));
     }
@@ -583,7 +583,7 @@ public:
         ClientConnectionPtr new_connection = 
             ClientConnection::create(
                 this, 
-                m_tcp_acceptor.get_io_context(), 
+                m_tcp_acceptor.get_io_context(),
                 m_udp_socket, 
                 m_request_handler_ref);
 
