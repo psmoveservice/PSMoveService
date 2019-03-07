@@ -132,6 +132,7 @@ bool Renderer::init()
     // Setup ImGui key-bindings and callback functions
     if (success)
     {
+        ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.KeyMap[ImGuiKey_Tab] = SDLK_TAB;                     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
         io.KeyMap[ImGuiKey_LeftArrow] = SDL_SCANCODE_LEFT;
@@ -201,7 +202,7 @@ void Renderer::destroy()
         m_FontTexture = 0;
     }
 
-    // ImGui::Shutdown();
+    ImGui::DestroyContext();
 
     if (m_glContext != NULL)
     {
