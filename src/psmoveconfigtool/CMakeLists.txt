@@ -1,6 +1,11 @@
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVECONFIGTOOL_INCL_DIRS)
 set(PSMOVECONFIGTOOL_REQ_LIBS)
+# Source files that are needed for the psmove config tool
+file(GLOB PSMOVECONFIGTOOL_SRC
+        "${CMAKE_CURRENT_LIST_DIR}/*.h"
+        "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
+)
 
 # Boost
 find_package(Boost REQUIRED QUIET COMPONENTS date_time)
@@ -22,7 +27,8 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
     PSMoveMath
     PSMoveProtocol
 	Eigen3::Eigen
-    protobuf::libprotoc protobuf::libprotobuf)
+    ${Protobuf_LIBRARIES})
+list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${Protobuf_INCLUDE_DIRS})
     
 # SDL/GL
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL2_INCLUDE_DIRS})
@@ -34,18 +40,15 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OpenCV_LIBS})
 
 #ImGui
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    # No installable ImGui package on Linux. Add headers and source manually.
     list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
         ${ROOT_DIR}/build_deps/imgui)
+    file(GLOB IMGUI_SRC "${ROOT_DIR}/build_deps/imgui/*.cpp")
+    list(APPEND PSMOVECONFIGTOOL_SRC ${IMGUI_SRC})
 ELSE()
     find_package(imgui CONFIG REQUIRED)
     list(APPEND PSMOVECONFIGTOOL_REQ_LIBS imgui::imgui)
 ENDIF()
-
-# Source files that are needed for the psmove config tool
-file(GLOB PSMOVECONFIGTOOL_SRC
-    "${CMAKE_CURRENT_LIST_DIR}/*.h"
-    "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
-)
 
 # PSMoveConfigTool
 add_executable(PSMoveConfigTool ${PSMOVECONFIGTOOL_SRC})

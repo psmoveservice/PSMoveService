@@ -10,6 +10,7 @@ file(GLOB PSMOVE_MATH_LIBRARY_SRC
 
 # Object library
 add_library(PSMoveMath OBJECT ${PSMOVE_MATH_LIBRARY_SRC})
+set_property(TARGET PSMoveMath PROPERTY POSITION_INDEPENDENT_CODE ON)
 # target_include_directories(PSMoveMath PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(PSMoveMath PRIVATE Eigen3::Eigen glm)
 

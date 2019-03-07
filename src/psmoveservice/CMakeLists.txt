@@ -159,11 +159,11 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/
-    ${ROOT_DIR}/thirdparty/Boost.Application/example/
-    ${ROOT_DIR}/thirdparty/type_index/include/)
+    ${ROOT_DIR}/thirdparty/Boost.Application/example/)
 
 # Protobuf (already found in top-level CMakeLists)
-list(APPEND PSMOVE_SERVICE_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Protobuf_INCLUDE_DIRS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Protobuf_LIBRARIES})
 
 # Boost. TODO: Trim this list.
 find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
@@ -184,11 +184,11 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBSTEM_GAMEPAD_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${LIBSTEM_GAMEPAD_SRC})
 
-# PSMoveDataFrame
+# PSMoveProtocol OBJECT lib
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
-# PSMoveMath
+# PSMoveMath OBJECT lib
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmovemath/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 

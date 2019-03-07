@@ -9,8 +9,7 @@ file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
 
 # PSMoveProtocol library
 add_library(PSMoveProtocol OBJECT ${PSMOVEPROTOCOL_LIBRARY_SRC})
-# A newish version of cmake is required to be able to link a library
-# to an OBJECT library.
+set_property(TARGET PSMoveProtocol PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(PSMoveProtocol PRIVATE ${Protobuf_LIBRARIES})
 protobuf_generate(
     TARGET PSMoveProtocol

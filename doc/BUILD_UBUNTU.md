@@ -24,6 +24,7 @@ The following should be run from inside the cloned PSMoveService directory.
     * `sudo ./bootstrap.sh`
         * TODO: Add `--with-libraries=library-name-list` to shorten compile time.
     * `sudo ./b2 install`
+    * `cd ..`
 
 ### Generate project files
 
@@ -31,3 +32,8 @@ The following should be run from inside the cloned PSMoveService directory.
 1. `mkdir build && cd build`
 1. `cmake ..`
 1. `make .`
+
+### udev access
+
+1. `sudo cp misc/99-psmove.rules /etc/udev/rules.d/`
+1. `sudo udevadm trigger`
