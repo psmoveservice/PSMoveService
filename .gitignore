@@ -60,3 +60,5 @@ SetBuildVars_X64.bat
 !src/openvr_plugin/resources/*.obj
 
 *.kdev4
+
+.DS_Store
