@@ -55,13 +55,13 @@ IF(NOT OpenCV_DIR)
         # Location of homebrew opencv3's OpenCVConfig.cmake
         # Alternatively, can do `brew ln opencv3 --force`
         MESSAGE(STATUS "Using homebrew opencv3")
-        set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
+        set(OpenCV_DIR "/usr/local/opt/opencv@3/share/OpenCV")
     ELSE()
         set(OpenCV_DIR “/usr/share/OpenCV”)
     ENDIF()#Windows or Darwin
     LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 ENDIF(NOT OpenCV_DIR)
-set(OpenCV_STATIC ON)
+# set(OpenCV_STATIC ON)
 FIND_PACKAGE(OpenCV REQUIRED)
 # Use with:
 #target_include_directories(main PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -106,22 +106,13 @@ ENDIF()
 
 
 # SDL and GL
-#set(SDL_GL_INCLUDE_DIRS)
-#set(SDL_GL_LIBS)
 message(STATUS "ThirdParty.cmake finding SDL")
+find_package(SDL2 CONFIG REQUIRED)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(OPENGL_FRAMEWORK OpenGL)
-    find_package(SDL2)
-    set(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-    list(APPEND SDL_GL_LIBS
-        ${SDL2_LIBRARY} ${OPENGL_FRAMEWORK} ${GLUT_FRAMEWORK})
+    list(APPEND SDL2_LIBRARIES ${OPENGL_FRAMEWORK} ${GLUT_FRAMEWORK})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    find_package(SDL2 CONFIG REQUIRED)
     list(APPEND SDL2_LIBRARIES GL)
-#    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-#    list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    find_package(SDL2 CONFIG REQUIRED)
 ENDIF()
 # Use with:
 # target_include_directories(main ${SDL2_INCLUDE_DIRS})

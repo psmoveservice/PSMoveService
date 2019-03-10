@@ -26,7 +26,7 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
     PSMoveClient_CAPI
     PSMoveMath
     PSMoveProtocol
-	Eigen3::Eigen
+    Eigen3::Eigen
     ${Protobuf_LIBRARIES})
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${Protobuf_INCLUDE_DIRS})
     
@@ -39,7 +39,7 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OpenCV_LIBS})
 
 #ImGui
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+IF((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
     # No installable ImGui package on Linux. Add headers and source manually.
     list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
         ${ROOT_DIR}/build_deps/imgui)
