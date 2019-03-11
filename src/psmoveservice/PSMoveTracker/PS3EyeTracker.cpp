@@ -298,7 +298,7 @@ bool PS3EyeTracker::open() // Opens the first HID device for the tracker
 bool PS3EyeTracker::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
     // Down-cast the enumerator so we can use the correct get_path.
-    const TrackerDeviceEnumerator *pEnum = static_cast<const TrackerDeviceEnumerator *>(enumerator);
+    const auto *pEnum = dynamic_cast<const TrackerDeviceEnumerator *>(enumerator);
 
     bool matches = false;
 
@@ -314,7 +314,7 @@ bool PS3EyeTracker::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) 
 
 bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
 {
-    const TrackerDeviceEnumerator *tracker_enumerator = static_cast<const TrackerDeviceEnumerator *>(enumerator);
+    const auto *tracker_enumerator = dynamic_cast<const TrackerDeviceEnumerator *>(enumerator);
     const char *cur_dev_path = tracker_enumerator->get_path();
 
     bool bSuccess = false;
@@ -446,7 +446,7 @@ CommonDeviceState::eDeviceType PS3EyeTracker::getDeviceType() const
 
 const CommonDeviceState *PS3EyeTracker::getState(int lookBack) const
 {
-    const int queueSize = static_cast<int>(TrackerStates.size());
+    const auto queueSize = static_cast<int>(TrackerStates.size());
     const CommonDeviceState * result =
         (lookBack < queueSize) ? &TrackerStates.at(queueSize - lookBack - 1) : nullptr;
 
@@ -473,7 +473,7 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 
     if (out_width != nullptr)
     {
-        int width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
+        auto width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
 
         if (out_stride != nullptr)
         {
@@ -484,7 +484,7 @@ bool PS3EyeTracker::getVideoFrameDimensions(
             // CAP_PROP_FORMAT: Get the Format of the Mat objects returned by VideoCapture::retrieve()
             // --> CV_MAKETYPE(IPL2CV_DEPTH(frame.depth), frame.nChannels)
 
-            int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
+            auto format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
             int bytes_per_pixel;
 
             if (format != -1)
@@ -533,7 +533,7 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 
     if (out_height != nullptr)
     {
-        int height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
+        auto height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
 
         *out_height = height;
     }
@@ -775,7 +775,7 @@ void PS3EyeTracker::gatherTrackingColorPresets(
     for (int list_index = 0; list_index < MAX_TRACKING_COLOR_TYPES; ++list_index)
     {
         const CommonHSVColorRange &hsvRange = table->color_presets[list_index];
-        const eCommonTrackingColorID colorType = static_cast<eCommonTrackingColorID>(list_index);
+        const auto colorType = static_cast<eCommonTrackingColorID>(list_index);
 
         PSMoveProtocol::TrackingColorPreset *colorPreset= settings->add_color_presets();
         colorPreset->set_color_type(static_cast<PSMoveProtocol::TrackingColorType>(colorType));
