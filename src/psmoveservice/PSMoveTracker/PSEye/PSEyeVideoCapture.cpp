@@ -608,6 +608,7 @@ double PSEyeVideoCapture::get(int propId) const
         }
     }
 #endif
+    // propId from cv::VideoCaptureProperties
     return cv::VideoCapture::get(propId);
 }
 

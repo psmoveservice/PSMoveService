@@ -477,27 +477,46 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 
         if (out_stride != nullptr)
         {
+            // We need to determine the number of bytes per pixel.
+            // which VideoCapture->get() property?
+            // CAP_PROP_FOURCC: 4-character code of codec. See http://www.fourcc.org/codecs.php
+            // CAP_PROP_MODE: Backend-specific value indicating the current capture mode.
+            // CAP_PROP_FORMAT: Get the Format of the Mat objects returned by VideoCapture::retrieve()
+            // --> CV_MAKETYPE(IPL2CV_DEPTH(frame.depth), frame.nChannels)
+
             int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
             int bytes_per_pixel;
 
             if (format != -1)
             {
-                switch (format)
+                // format is from an enum, with entries structured as
+                // CV_N(S|U)CK where N is the depth, Signed or Unsigned, K is the number of channels per pixel.
+                // https://stackoverflow.com/questions/14364563/minmaxloc-datatype/14365886#14365886
+                int chans_per_pixel = (format >> CV_CN_SHIFT) + 1;
+                int mat_depth = CV_MAT_DEPTH(format);
+                int bytes_per_chan;
+                switch (mat_depth)
                 {
-                case cv::CAP_MODE_BGR:
-                case cv::CAP_MODE_RGB:
-                    bytes_per_pixel = 3;
+                case CV_8U:
+                case CV_8S:
+                    bytes_per_chan = 1;
                     break;
-                case cv::CAP_MODE_YUYV:
-                    bytes_per_pixel = 2;
+                case CV_16U:
+                case CV_16S:
+                    bytes_per_chan = 2;
                     break;
-                case cv::CAP_MODE_GRAY:
-                    bytes_per_pixel = 1;
+                case CV_32S:
+                case CV_32F:
+                    bytes_per_chan = 3;
+                    break;
+                case CV_64F:
+                    bytes_per_chan = 4;
                     break;
                 default:
                     assert(false && "Unknown video format?");
                     break;
                 }
+                bytes_per_pixel = bytes_per_chan * chans_per_pixel;
             }
             else
             {
@@ -706,7 +725,7 @@ void PS3EyeTracker::gatherTrackerOptions(
     PSMoveProtocol::Response_ResultTrackerSettings* settings) const
 {
     PSMoveProtocol::OptionSet *optionSet = settings->add_option_sets();
-    
+
     optionSet->set_option_name(OPTION_FOV_SETTING);
     optionSet->add_option_strings(OPTION_FOV_RED_DOT);
     optionSet->add_option_strings(OPTION_FOV_BLUE_DOT);
@@ -719,8 +738,8 @@ bool PS3EyeTracker::setOptionIndex(
 {
     bool bValidOption = false;
 
-    if (option_name == OPTION_FOV_SETTING && 
-        option_index >= 0 && 
+    if (option_name == OPTION_FOV_SETTING &&
+        option_index >= 0 &&
         option_index < PS3EyeTrackerConfig::eFOVSetting::MAX_FOV_SETTINGS)
     {
         cfg.fovSetting = static_cast<PS3EyeTrackerConfig::eFOVSetting>(option_index);
@@ -733,7 +752,7 @@ bool PS3EyeTracker::setOptionIndex(
 }
 
 bool PS3EyeTracker::getOptionIndex(
-    const std::string &option_name, 
+    const std::string &option_name,
     int &out_option_index) const
 {
     bool bValidOption = false;
@@ -748,7 +767,7 @@ bool PS3EyeTracker::getOptionIndex(
 }
 
 void PS3EyeTracker::gatherTrackingColorPresets(
-	const std::string &controller_serial, 
+	const std::string &controller_serial,
     PSMoveProtocol::Response_ResultTrackerSettings* settings) const
 {
 	const CommonHSVColorRangeTable *table= cfg.getColorRangeTable(controller_serial);
@@ -770,8 +789,8 @@ void PS3EyeTracker::gatherTrackingColorPresets(
 }
 
 void PS3EyeTracker::setTrackingColorPreset(
-	const std::string &controller_serial, 
-    eCommonTrackingColorID color, 
+	const std::string &controller_serial,
+    eCommonTrackingColorID color,
     const CommonHSVColorRange *preset)
 {
 //    cfg.ColorPresets[color] = *preset; // from generic_camera conflict
@@ -782,8 +801,8 @@ void PS3EyeTracker::setTrackingColorPreset(
 }
 
 void PS3EyeTracker::getTrackingColorPreset(
-	const std::string &controller_serial, 
-    eCommonTrackingColorID color, 
+	const std::string &controller_serial,
+    eCommonTrackingColorID color,
     CommonHSVColorRange *out_preset) const
 {
 	const CommonHSVColorRangeTable *table= cfg.getColorRangeTable(controller_serial);

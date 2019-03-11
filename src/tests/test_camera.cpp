@@ -47,7 +47,7 @@ int main(int, char**)
 	std::cout << "Please enter the initial frame width for the cameras:\n";
 	std::cin >> frame_width_init;
 
-    // Open all available cameras (up to 4 max)
+    // Open all available cameras (up to PSMOVESERVICE_MAX_TRACKER_COUNT max)
 	for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
 	{
         auto *camera = new PSEyeVideoCapture(camera_index); // open the default camera
@@ -66,6 +66,11 @@ int main(int, char**)
 			int last_frames = 0;
 
             camera_states.push_back({ camera, identifier, last_ticks, last_frames });
+
+            // Print some additional details.
+			int format = static_cast<int>(camera->get(cv::CAP_PROP_FORMAT));
+			std::cout << "CAP_PROP_FORMAT: " << format << std::endl;
+			std::cout << "Channels per pixel: " << (format >> CV_CN_SHIFT) + 1 << std::endl;
         }
         else
         {
