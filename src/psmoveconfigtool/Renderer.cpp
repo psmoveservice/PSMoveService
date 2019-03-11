@@ -44,13 +44,14 @@ static const float k_camera_z_far= 5000.f;
 static const ImVec4 k_clear_color = ImColor(114, 144, 154);
 
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
+static char* g_ClipboardTextData = NULL;
 
 //-- statics -----
 Renderer *Renderer::m_instance= NULL;
 
 //-- prototypes -----
-static const char* ImGui_ImplSdl_GetClipboardText();
-static void ImGui_ImplSdl_SetClipboardText(const char* text);
+static const char* ImGui_ImplSDL2_GetClipboardText(void*);
+static void ImGui_ImplSDL2_SetClipboardText(void*, const char* text);
 static void ImGui_ImplSdl_RenderDrawLists(ImDrawData* draw_data);
 
 //-- public methods -----
@@ -81,6 +82,8 @@ bool Renderer::init()
 {
     bool success = true;
 
+    // https://github.com/ocornut/imgui/blob/master/examples/example_sdl_opengl2/main.cpp
+
     Log_INFO("Renderer::init()", "Initializing Renderer Context");
 
     if (SDL_Init(SDL_INIT_VIDEO) == 0) 
@@ -103,12 +106,16 @@ bool Renderer::init()
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
+        SDL_DisplayMode current;
+        SDL_GetCurrentDisplayMode(0, &current);
+
 		snprintf(szWindowTitle, sizeof(szWindowTitle), "PSMove Config Tool");
+        SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
         m_window = SDL_CreateWindow(szWindowTitle,
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             k_window_pixel_width, k_window_pixel_height,
-            SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+            window_flags);
         m_windowWidth= k_window_pixel_width;
         m_windowHeight= k_window_pixel_height;
 
@@ -133,7 +140,18 @@ bool Renderer::init()
     if (success)
     {
         ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+        // Setup Dear ImGui style
+        ImGui::StyleColorsDark();
+        //ImGui::StyleColorsClassic();
+
+        // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);  https://github.com/ocornut/imgui/blob/master/examples/imgui_impl_sdl.cpp#L123
+
+        //io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;       // We can honor GetMouseCursor() values (optional)
+        //io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;        // We can honor io.WantSetMousePos requests (optional, rarely used)
+        io.BackendPlatformName = "imgui_impl_sdl";
+
         io.KeyMap[ImGuiKey_Tab] = SDLK_TAB;                     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
         io.KeyMap[ImGuiKey_LeftArrow] = SDL_SCANCODE_LEFT;
         io.KeyMap[ImGuiKey_RightArrow] = SDL_SCANCODE_RIGHT;
@@ -154,9 +172,12 @@ bool Renderer::init()
         io.KeyMap[ImGuiKey_Y] = SDLK_y;
         io.KeyMap[ImGuiKey_Z] = SDLK_z;
 
-        io.RenderDrawListsFn = ImGui_ImplSdl_RenderDrawLists;   // Alternatively you can set this to NULL and call ImGui::GetDrawData() after ImGui::Render() to get the same ImDrawData pointer.
-		//io.SetClipboardTextFn = ImGui_ImplSdl_SetClipboardText;
-        //io.GetClipboardTextFn = ImGui_ImplSdl_GetClipboardText;
+        io.RenderDrawListsFn = ImGui_ImplSdl_RenderDrawLists;
+        // Alternatively you can set this to NULL and call ImGui::GetDrawData() after ImGui::Render() to get the same ImDrawData pointer.
+
+        io.SetClipboardTextFn = ImGui_ImplSDL2_SetClipboardText;
+        io.GetClipboardTextFn = ImGui_ImplSDL2_GetClipboardText;
+        io.ClipboardUserData = NULL;
 
     #ifdef _WIN32
         SDL_SysWMinfo wmInfo;
@@ -164,6 +185,9 @@ bool Renderer::init()
         SDL_GetWindowWMInfo(m_window, &wmInfo);
         io.ImeWindowHandle = wmInfo.info.win.window;
     #endif
+
+        // https://github.com/ocornut/imgui/blob/master/examples/example_sdl_opengl2/main.cpp#L50
+        io.BackendRendererName = "imgui_impl_opengl2";
 
         m_Time= 0.0f;
         m_MouseWheel= 0.0f;
@@ -202,6 +226,11 @@ void Renderer::destroy()
         m_FontTexture = 0;
     }
 
+    // Destroy last known clipboard data
+    if (g_ClipboardTextData)
+        SDL_free(g_ClipboardTextData);
+    g_ClipboardTextData = NULL;
+
     ImGui::DestroyContext();
 
     if (m_glContext != NULL)
@@ -227,6 +256,7 @@ void Renderer::destroy()
 
 bool Renderer::onSDLEvent(const SDL_Event *event)
 {
+    // https://github.com/ocornut/imgui/blob/master/examples/imgui_impl_sdl.cpp#L82
     ImGuiIO& io = ImGui::GetIO();
 
     switch (event->type)
@@ -1294,12 +1324,15 @@ void drawVirtualHMDModel(const glm::mat4 &transform, const glm::vec3 &color)
 }
 
 // -- IMGUI Callbacks -----
-static const char* ImGui_ImplSdl_GetClipboardText()
+static const char* ImGui_ImplSDL2_GetClipboardText(void*)
 {
-	return SDL_GetClipboardText();
+    if (g_ClipboardTextData)
+        SDL_free(g_ClipboardTextData);
+    g_ClipboardTextData = SDL_GetClipboardText();
+    return g_ClipboardTextData;
 }
 
-static void ImGui_ImplSdl_SetClipboardText(const char* text)
+static void ImGui_ImplSDL2_SetClipboardText(void*, const char* text)
 {
     SDL_SetClipboardText(text);
 }
