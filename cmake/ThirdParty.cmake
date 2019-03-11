@@ -161,6 +161,18 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     #list(APPEND PSEYE_LIBRARIES ${LIBUSB_LIBRARIES})
 ENDIF()
 
+# We don't officially support anything but the PS3Eye camera at the moment
+# and it's currently confusing debugging other peoples camera issues with
+# random webcams being opened.
+# However, this is the only way to open the PS3Eye on Linux.
+option(EnableWebcam "EnableWebcam" OFF)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(EnableWebcam ON)
+ENDIF()
+IF(${EnableWebcam})
+    add_compile_definitions(ENABLE_WEBCAM)
+ENDIF()
+
 
 # hidapi
 set(HIDAPI_INCLUDE_DIRS ${ROOT_DIR}/thirdparty/hidapi/hidapi)

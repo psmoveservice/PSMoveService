@@ -39,7 +39,7 @@ enum
 class cv::IVideoCapture
 {
 public:
-    virtual ~IVideoCapture() {}
+    virtual ~IVideoCapture() = default;
     virtual double getProperty(int) const { return 0; }
     virtual bool setProperty(int, double) { return false; }
     virtual bool grabFrame() = 0;
@@ -516,17 +516,13 @@ bool PSEyeVideoCapture::open(int index)
     }
 
 	// PS3EYE-specific camera capture if available, else use base class open()
-
-    //###HipsterSloth $TODO
-    // Disabling the OpenCV camera open fallback.
-    // We don't officially support anything but the PS3Eye camera at the moment
-    // and it's currently confusing debugging other peoples camera issues with 
-    // this code path in place (random web cams getting opened)
-    //if (!isOpened())
-    //{
-    //    std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
-    //    return cv::VideoCapture::open(index);
-    //}
+#ifdef ENABLE_WEBCAM
+    if (!isOpened())
+    {
+        std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
+        return cv::VideoCapture::open(index);
+    }
+#endif
 
     return isOpened();
 }
