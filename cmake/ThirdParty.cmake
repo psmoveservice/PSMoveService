@@ -91,10 +91,15 @@ find_package(Boost REQUIRED)
 
 # Protobuf
 set(Protobuf_DEBUG OFF)  # Turn on to debug protobuf issues.
-find_package(Protobuf REQUIRED)
-# Use with:
-# target_include_directories(${target} ${Protobuf_INCLUDE_DIRS})
-# target_link_libraries(${target} ${Protobuf_LIBRARIES})
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	find_package(Protobuf CONFIG REQUIRED)
+	# Use with: target_link_libraries(PSMoveProtocol PRIVATE protobuf::libprotoc protobuf::libprotobuf)
+ELSE()
+	find_package(Protobuf REQUIRED)
+	# Use with:
+	# target_include_directories(${target} ${Protobuf_INCLUDE_DIRS})
+	# target_link_libraries(${target} ${Protobuf_LIBRARIES})
+ENDIF()
 # Also, .proto files can be added to a target with:
 # protobuf_generate(TARGET ${target} PROTOS ${my.proto})
 
@@ -106,7 +111,6 @@ ENDIF()
 
 
 # SDL and GL
-message(STATUS "ThirdParty.cmake finding SDL")
 find_package(SDL2 CONFIG REQUIRED)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(OPENGL_FRAMEWORK OpenGL)

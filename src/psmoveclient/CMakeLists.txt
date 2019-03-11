@@ -16,16 +16,15 @@ list(APPEND PSMOVECLIENT_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/)
 # https://github.com/cboulay/PSMoveService/issues/39 ?
 
-# Protobuf
-list(APPEND PSMOVECLIENT_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
+# Protobuf - Transitively through PSMoveProtocol
+# list(APPEND PSMOVECLIENT_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 
 # Boost
 find_package(Boost REQUIRED QUIET COMPONENTS system)
 list(APPEND PSMOVECLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVECLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
-# PSMoveProtocol
-# Alternatively, could do: list(APPEND PSMOVECLIENT_LIBRARY_SRC) $<TARGET_OBJECTS:PSMoveProtocol>?
+# PSMoveProtocol - brings protobuf
 list(APPEND PSMOVECLIENT_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVECLIENT_REQ_LIBS PSMoveProtocol)
 

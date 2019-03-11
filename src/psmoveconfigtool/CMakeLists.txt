@@ -31,23 +31,27 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${Protobuf_INCLUDE_DIRS})
     
 # SDL/GL
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	list(APPEND PSMOVECONFIGTOOL_REQ_LIBS SDL2::SDL2 SDL2::SDL2main)
+ELSE()
+	list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${SDL2_LIBRARIES})
+ENDIF()
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL2_INCLUDE_DIRS})
-list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${SDL2_LIBRARIES})
 
 # OpenCV
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OpenCV_LIBS})
 
 #ImGui
-IF((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
-    # No installable ImGui package on Linux. Add headers and source manually.
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	find_package(imgui CONFIG REQUIRED)
+    list(APPEND PSMOVECONFIGTOOL_REQ_LIBS imgui::imgui)
+ELSE()  #((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
+    # No installable ImGui package on Linux/MacOS. Add headers and source manually. See build docs.
     list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
         ${ROOT_DIR}/build_deps/imgui)
     file(GLOB IMGUI_SRC "${ROOT_DIR}/build_deps/imgui/*.cpp")
     list(APPEND PSMOVECONFIGTOOL_SRC ${IMGUI_SRC})
-ELSE()
-    find_package(imgui CONFIG REQUIRED)
-    list(APPEND PSMOVECONFIGTOOL_REQ_LIBS imgui::imgui)
 ENDIF()
 
 # PSMoveConfigTool

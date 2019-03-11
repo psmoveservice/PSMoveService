@@ -10,16 +10,18 @@ file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
 # PSMoveProtocol library
 add_library(PSMoveProtocol OBJECT ${PSMOVEPROTOCOL_LIBRARY_SRC})
 set_property(TARGET PSMoveProtocol PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(PSMoveProtocol PRIVATE ${Protobuf_LIBRARIES})
+target_include_directories(PSMoveProtocol PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	target_link_libraries(PSMoveProtocol PUBLIC protobuf::libprotoc protobuf::libprotobuf)
+ELSE()
+	target_link_libraries(PSMoveProtocol PUBLIC ${Protobuf_LIBRARIES})
+	target_include_directories(PSMoveProtocol PUBLIC ${Protobuf_INCLUDE_DIRS})
+ENDIF()
 protobuf_generate(
     TARGET PSMoveProtocol
-    PROTOS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto)
-target_include_directories(PSMoveProtocol
-    PUBLIC
-        ${CMAKE_CURRENT_BINARY_DIR}
-    PRIVATE
-        ${Protobuf_INCLUDE_DIRS}
+    PROTOS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto
 )
+
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
