@@ -86,7 +86,9 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
     list(APPEND PSMOVESERVICE_PLATFORM_SRC
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPILinux.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPILinux.cpp)
 ENDIF()
 source_group("Platform" FILES ${PSMOVESERVICE_PLATFORM_SRC})
 

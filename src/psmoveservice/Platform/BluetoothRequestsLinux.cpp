@@ -323,6 +323,46 @@ AsyncBluetoothPairDeviceRequest::start()
     bool success= true;
     const int controller_id= m_controllerView->getDeviceID();
 
+    // Reset the pairing device state
+    BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(m_internal_state);
+    state->initialize(controller_id);
+    state->bUsesAuthentication= m_controllerView->getUsesBluetoothAuthentication();
+    state->controller_serial_string= m_controllerView->getSerial();
+    state->controller_device_type= m_controllerView->getControllerDeviceType();
+
+    // Make sure the controller we're working with is a USB connection
+    if (success && m_controllerView->getIsOpen() && m_controllerView->getIsBluetooth())
+    {
+        SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest")
+                << "Controller " << controller_id
+                << " isn't an open USB device";
+        success= false;
+    }
+
+    // Find the bluetooth address of the host adapter
+    if (success)
+    {
+        success= AsyncBluetoothPairDeviceRequest__findBluetoothRadio(state);
+    }
+
+    // Assign this host address on the controller.
+    // NOTE: This needs to be done on the main thread since the controller view isn't thread safe.
+    if (success)
+    {
+        success= AsyncBluetoothPairDeviceRequest__registerHostAddress(m_controllerView, state);
+    }
+
+    // Kick off the worker thread to do the rest of the work
+    if (success)
+    {
+
+    }
+
+    if (success)
+    {
+        m_status = AsyncBluetoothRequest::running;
+    }
+
     if (!success)
     {
         m_status = AsyncBluetoothRequest::failed;
@@ -357,4 +397,40 @@ AsyncBluetoothPairDeviceRequest::getDescription()
     description << "[Pair] ID: " << m_controllerView->getDeviceID() << " Conn: " << m_connectionId;
 
     return description.str();
+}
+
+//-- AsyncBluetoothPairDeviceRequest State Machine -----
+static bool
+AsyncBluetoothPairDeviceRequest__findBluetoothRadio(BluetoothPairDeviceState *state)
+{
+    assert(state->isMainThread());
+    bool bSuccess= true;
+
+    return bSuccess;
+}
+
+static bool
+AsyncBluetoothPairDeviceRequest__registerHostAddress(
+        ServerControllerViewPtr &controllerView,
+        BluetoothPairDeviceState *state)
+{
+    assert(state->isMainThread());
+    const int controller_id= controllerView->getDeviceID();
+    bool bSuccess= true;
+
+    if (controllerView->setHostBluetoothAddress(state->host_address_string))
+    {
+        SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest")
+                << "Assigned host address " << state->host_address_string
+                << " to controller id " << controller_id;
+    }
+    else
+    {
+        SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest")
+                << "Failed to set host address " << state->host_address_string
+                << " on controller id " << controller_id;
+        bSuccess= false;
+    }
+
+    return bSuccess;
 }
