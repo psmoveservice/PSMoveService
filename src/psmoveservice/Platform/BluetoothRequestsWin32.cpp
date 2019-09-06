@@ -1544,18 +1544,11 @@ patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radi
     HKEY hKey;
     if (success)
     {
-        LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, sub_key, 0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, &hKey);
+        DWORD lpdwDisposition;
+        LONG result = RegCreateKeyEx(HKEY_LOCAL_MACHINE, sub_key, 0, nullptr, 0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, NULL, &hKey, &lpdwDisposition);
         if (result != ERROR_SUCCESS) 
         {
-            if (result == ERROR_FILE_NOT_FOUND) 
-            {
-                SERVER_MT_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to open registry key, it does not yet exist";
-            }
-            else
-            {
-                SERVER_MT_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to open registry key";
-            }
-
+            SERVER_MT_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to create registry key";
             success= false;
         }
     }
