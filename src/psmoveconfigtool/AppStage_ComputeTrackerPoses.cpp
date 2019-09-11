@@ -320,7 +320,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
     const float k_panel_width = 300.f;
     const char *k_window_title = "Compute Tracker Poses";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
@@ -457,8 +456,8 @@ void AppStage_ComputeTrackerPoses::renderUI()
         // Tracker Alignment Marker
         if (m_bShowAlignment)
         {
-            float prevAlpha = ImGui::GetStyle().WindowFillAlphaDefault;
-            ImGui::GetStyle().WindowFillAlphaDefault = 0.f;
+            //float prevAlpha = ImGui::GetStyle().WindowFillAlphaDefault;
+            //ImGui::GetStyle().WindowFillAlphaDefault = 0.f;
 
             float align_window_size = 30.f;
             float x0 = (ImGui::GetIO().DisplaySize.x - align_window_size) / 2;
@@ -468,7 +467,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::SetNextWindowSize(ImVec2(align_window_size, align_window_size));
             ImGui::Begin("Alignment Window", nullptr,
                 ImGuiWindowFlags_NoTitleBar |
-                ImGuiWindowFlags_ShowBorders |
                 ImGuiWindowFlags_NoResize |
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar |
@@ -490,7 +488,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
             );
 
             ImGui::End();
-            ImGui::GetStyle().WindowFillAlphaDefault = prevAlpha;
+            //ImGui::GetStyle().WindowFillAlphaDefault = prevAlpha;
         }
 
         break;

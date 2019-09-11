@@ -50,9 +50,6 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(test_camera opencv)
-ENDIF()
 SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
     
 # The test_camera_parallel app
@@ -60,9 +57,6 @@ IF((${CMAKE_SYSTEM_NAME} MATCHES "Windows") OR (${CMAKE_SYSTEM_NAME} MATCHES "Da
     add_executable(test_camera_parallel ${CMAKE_CURRENT_LIST_DIR}/test_camera_parallel.cpp ${TEST_CAMERA_SRC})
     target_include_directories(test_camera_parallel PUBLIC ${TEST_CAMERA_INCL_DIRS})
     target_link_libraries(test_camera_parallel ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
-    IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        add_dependencies(test_camera_parallel opencv)
-    ENDIF()
     SET_TARGET_PROPERTIES(test_camera_parallel PROPERTIES FOLDER Test)
 ENDIF()
 
@@ -121,7 +115,7 @@ SET(TEST_PSMOVE_REQ_LIBS)
 # hidapi
 list(APPEND TEST_PSMOVE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_PSMOVE_SRC ${HIDAPI_SRC})
-list(APPEND TEST_PSMOVE_REQ_LIBS ${HIDAPI_LIBS})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${HIDAPI_LIBRARIES})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -131,6 +125,7 @@ list(APPEND TEST_PSMOVE_REQ_LIBS ${LIBUSB_LIBRARIES})
 #Bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     # Why not Windows?
+	# list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesWin32.cpp)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
@@ -201,6 +196,7 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+# list(APPEND TEST_PSMOVE_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_PSMOVE_REQ_LIBS PSMoveProtocol)
 
@@ -237,7 +233,7 @@ SET(TEST_NAVI_REQ_LIBS)
 # hidapi
 list(APPEND TEST_NAVI_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_NAVI_SRC ${HIDAPI_SRC})
-list(APPEND TEST_NAVI_REQ_LIBS ${HIDAPI_LIBS})
+list(APPEND TEST_NAVI_REQ_LIBS ${HIDAPI_LIBRARIES})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -316,6 +312,7 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+# list(APPEND TEST_NAVI_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_NAVI_REQ_LIBS PSMoveProtocol)
 
@@ -360,7 +357,7 @@ ENDIF()
 # hidapi
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_DS4_CTRLR_SRC ${HIDAPI_SRC})
-list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${HIDAPI_LIBS})
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${HIDAPI_LIBRARIES})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -440,6 +437,7 @@ list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
+# list(APPEND TEST_DS4_CTRLR_REQ_LIBS protobuf::libprotoc protobuf::libprotobuf)
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_DS4_CTRLR_REQ_LIBS PSMoveProtocol)
 

@@ -98,14 +98,14 @@ public:
 
     static ClientConnectionPtr create(
         IServerNetworkEventListener* network_event_listener,
-        asio::io_service& io_service_ref,
+        asio::io_context& io_context_ref,
         udp::socket& udp_socket_ref, 
         ServerRequestHandler &request_handler_ref)
     {
         return ClientConnectionPtr(
             new ClientConnection(
                 network_event_listener, 
-                io_service_ref, 
+                io_context_ref,
                 udp_socket_ref, 
                 request_handler_ref));
     }
@@ -232,7 +232,7 @@ public:
                     write_in_progress= true;
 
                     // Start an asynchronous operation to send a heartbeat message.
-                    // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+                    // NOTE: Even if the write completes immediate, the callback will only be called from io_context::poll()
                     boost::asio::async_write(
                         m_tcp_socket, 
                         boost::asio::buffer(m_response_write_buffer),
@@ -280,7 +280,7 @@ public:
                         write_in_progress= true;
 
                         // Start an asynchronous operation to send the data frame
-                        // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+                        // NOTE: Even if the write completes immediate, the callback will only be called from io_context::poll()
                         m_udp_socket_ref.async_send_to(
                             boost::asio::buffer(m_output_dataframe_buffer, sizeof(m_output_dataframe_buffer)),
                             m_udp_remote_endpoint,
@@ -334,13 +334,13 @@ private:
 
     ClientConnection(
         IServerNetworkEventListener *network_event_listener,
-        asio::io_service& io_service_ref,
+        asio::io_context& io_context_ref,
         udp::socket& udp_socket_ref , 
         ServerRequestHandler &request_handler_ref)
         : m_network_event_listener(network_event_listener)
         , m_connection_id(next_connection_id)
         , m_request_handler_ref(request_handler_ref)
-        , m_tcp_socket(io_service_ref)
+        , m_tcp_socket(io_context_ref)
         , m_udp_socket_ref(udp_socket_ref)
         , m_udp_remote_endpoint()
         , m_is_udp_remote_endpoint_bound(false)
@@ -548,11 +548,11 @@ int ClientConnection::next_connection_id = 0;
 class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
-    ServerNetworkManagerImpl(asio::io_service &io_service, NetworkManagerConfig &cfg, ServerRequestHandler &requestHandler)
+    ServerNetworkManagerImpl(asio::io_context &io_context, NetworkManagerConfig &cfg, ServerRequestHandler &requestHandler)
         : m_request_handler_ref(requestHandler)
-        , m_io_service(io_service)
-        , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), cfg.server_port))
-        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), cfg.server_port))
+        , m_io_context(io_context)
+        , m_tcp_acceptor(m_io_context, tcp::endpoint(tcp::v4(), cfg.server_port))
+        , m_udp_socket(m_io_context, udp::endpoint(udp::v4(), cfg.server_port))
         , m_udp_connecting_remote_endpoint()
         , m_packed_input_dataframe(std::shared_ptr<PSMoveProtocol::DeviceInputDataFrame>(new PSMoveProtocol::DeviceInputDataFrame()))
         , m_udp_connection_result_write_buffer(false)
@@ -583,7 +583,7 @@ public:
         ClientConnectionPtr new_connection = 
             ClientConnection::create(
                 this, 
-                m_tcp_acceptor.get_io_service(), 
+                m_tcp_acceptor.get_io_context(),
                 m_udp_socket, 
                 m_request_handler_ref);
 
@@ -617,7 +617,7 @@ public:
             // * TCP request has finished reading
             // * TCP response has finished writing
             // * UDP data frame has finished writing
-            m_io_service.poll();
+            m_io_context.poll();
 
             // In the event that a UDP data frame write completed immediately,
             // we should start another UDP data frame write.
@@ -751,7 +751,7 @@ private:
     ServerRequestHandler &m_request_handler_ref;
     
     // Core i/o functionality for TCP/UDP sockets
-    asio::io_service &m_io_service;
+    asio::io_context &m_io_context;
     
     // Handles waiting for and accepting new TCP connections
     tcp::acceptor m_tcp_acceptor;
@@ -990,12 +990,12 @@ ServerNetworkManager::~ServerNetworkManager()
 }
 
 bool ServerNetworkManager::startup(
-	boost::asio::io_service *io_service,
+	boost::asio::io_context *io_context,
     ServerRequestHandler *requestHandler)
 {    
     m_instance= this;
     
-	implementation_ptr= new ServerNetworkManagerImpl(*io_service, m_cfg, *requestHandler);
+	implementation_ptr= new ServerNetworkManagerImpl(*io_context, m_cfg, *requestHandler);
     implementation_ptr->start_connection_accept();
 
     return true;

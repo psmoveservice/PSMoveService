@@ -1,14 +1,5 @@
+cmake_minimum_required(VERSION 3.12)
 set(PSMOVEPROTOCOL_LIBRARY_SRC)    # Container for source files
-set(PSMOVEPROTOCOL_INCLUDE_DIRS)   # Container for include directories
-set(PSMOVEPROTOCOL_REQUIRED_LIBS)  # Container for library dependencies
-
-# Dependencies
-
-# Protobuf
-list(APPEND PSMOVEPROTOCOL_INCLUDE_DIRS ${PROTOBUF_INCLUDE_DIRS})
-list(APPEND PSMOVEPROTOCOL_REQUIRED_LIBS ${PROTOBUF_LIBRARIES})
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto)
-#See http://stackoverflow.com/questions/20824194/cmake-with-google-protocol-buffers
 
 # Source files and headers
 file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
@@ -16,15 +7,22 @@ file(GLOB PSMOVEPROTOCOL_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
 )
 
-list(APPEND PSMOVEPROTOCOL_LIBRARY_SRC ${PROTO_SRCS} ${PROTO_HDRS})
+# PSMoveProtocol library
+add_library(PSMoveProtocol OBJECT ${PSMOVEPROTOCOL_LIBRARY_SRC})
+set_property(TARGET PSMoveProtocol PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(PSMoveProtocol PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+	target_link_libraries(PSMoveProtocol PUBLIC protobuf::libprotoc protobuf::libprotobuf)
+ELSE()
+	target_link_libraries(PSMoveProtocol PUBLIC ${Protobuf_LIBRARIES})
+	target_include_directories(PSMoveProtocol PUBLIC ${Protobuf_INCLUDE_DIRS})
+ENDIF()
+protobuf_generate(
+    TARGET PSMoveProtocol
+    PROTOS ${CMAKE_CURRENT_LIST_DIR}/PSMoveProtocol.proto
+)
 
-# Static library
-add_library(PSMoveProtocol STATIC ${PSMOVEPROTOCOL_LIBRARY_SRC})
-target_include_directories(PSMoveProtocol PUBLIC ${PSMOVEPROTOCOL_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(PSMoveProtocol PRIVATE ${PSMOVEPROTOCOL_REQUIRED_LIBS})
-set_target_properties(PSMoveProtocol PROPERTIES
-    COMPILE_FLAGS "-DBUILDING_STATIC_LIBRARY -fPIC")
-    
+
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     install(FILES ProtocolVersion.h SharedConstants.h

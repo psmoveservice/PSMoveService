@@ -37,7 +37,6 @@ void AppStage_ServiceSettings::update()
 void AppStage_ServiceSettings::renderUI()
 {
     ImGuiWindowFlags window_flags = 
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize | 
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

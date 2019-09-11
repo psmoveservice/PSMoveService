@@ -143,7 +143,6 @@ void AppStage_TestButtons::renderUI()
     const float k_panel_width = 500;
     const char *k_window_title = "Test Buttons";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

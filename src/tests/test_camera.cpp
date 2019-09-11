@@ -47,10 +47,10 @@ int main(int, char**)
 	std::cout << "Please enter the initial frame width for the cameras:\n";
 	std::cin >> frame_width_init;
 
-    // Open all available cameras (up to 4 max)
+    // Open all available cameras (up to PSMOVESERVICE_MAX_TRACKER_COUNT max)
 	for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
 	{
-        PSEyeVideoCapture *camera = new PSEyeVideoCapture(camera_index); // open the default camera
+        auto *camera = new PSEyeVideoCapture(camera_index); // open the default camera
 
         if (camera->isOpened())
         {
@@ -66,6 +66,11 @@ int main(int, char**)
 			int last_frames = 0;
 
             camera_states.push_back({ camera, identifier, last_ticks, last_frames });
+
+            // Print some additional details.
+			int format = static_cast<int>(camera->get(cv::CAP_PROP_FORMAT));
+			std::cout << "CAP_PROP_FORMAT: " << format << std::endl;
+			std::cout << "Channels per pixel: " << (format >> CV_CN_SHIFT) + 1 << std::endl;
         }
         else
         {
@@ -82,7 +87,7 @@ int main(int, char**)
         }
     );
 
-    bool bKeepRunning = camera_states.size() > 0;
+    bool bKeepRunning = !camera_states.empty();
     while (bKeepRunning)
     {
         // Render each camera frame in it's own window
@@ -242,9 +247,7 @@ int main(int, char**)
                     std::cout << state.identifier << ": Value of " << prop_str << " changed by " << val_diff << " and is now " << val << std::endl;
                 }
             );
-        }
-		else if (std::find(known_keys_check.begin(), known_keys_check.end(), wk) != known_keys_check.end())
-		{
+        } else if (std::find(known_keys_check.begin(), known_keys_check.end(), wk) != known_keys_check.end()) {
 			int cap_prop = CV_CAP_PROP_FPS;
 			std::string prop_str("CV_CAP_PROP_FPS");
 
@@ -308,24 +311,23 @@ int main(int, char**)
 				camera_states.begin(),
 				camera_states.end(),
 				[&camera_states, &cap_prop, &prop_str, &wk](camera_state &state) {
-				
-				double val = state.camera->get(cap_prop);
-				auto now_ticks = std::chrono::high_resolution_clock::now();
-				switch (wk)
-				{
-				case 32:
-					std::cout << state.identifier << ": Fame rate is set to " << val << " and was actually " 
-						<< (1000 * state.last_frames / (float(std::chrono::duration<double, std::milli>(now_ticks - state.last_ticks).count()))) << " fps" << std::endl;
-					state.last_ticks = now_ticks;
-					state.last_frames = 0;
-					break;
-				default:
-					std::cout << state.identifier << ": Value of " << prop_str << " is " << val << std::endl;
+				    double val = state.camera->get(cap_prop);
+				    auto now_ticks = std::chrono::high_resolution_clock::now();
+				    switch (wk)
+				    {
+				        case 32:
+				            std::cout << state.identifier << ": Fame rate is set to " << val << " and was actually "
+				            << (1000 * state.last_frames / (float(std::chrono::duration<double, std::milli>(now_ticks - state.last_ticks).count()))) << " fps" << std::endl;
+				            state.last_ticks = now_ticks;
+				            state.last_frames = 0;
+				            break;
+                        default:
+                            std::cout << state.identifier << ": Value of " << prop_str << " is " << val << std::endl;
+				    }
 				}
-			}
-			);
+            );
 		}
-        else if (wk > 0)
+        else if (wk > 0 && wk != 255)
         {
             std::cout << "Unknown key has code " << wk << std::endl;
         }
