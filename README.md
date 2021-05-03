@@ -1,19 +1,22 @@
+# NOTICE OF ARCHIVAL
+This project is no longer in development and is now archived. Anyone that wants to continue work on this project is welcome in their own fork, but repo is no longer accepting pull requests, considering any issues, anwswering questions, or offering support. WYSIWYG.
+
 [![Documentation](https://codedocs.xyz/HipsterSloth/PSMoveService.svg)](https://codedocs.xyz/HipsterSloth/PSMoveService/)
 
 # PSMoveService
-A background service that manages multiple PSMove Controllers and PS3 Eye Cameras. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). A visual client front-end is used for controller/tracker configuration. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
+A background service that manages multiple PSMove Controllers and PS3 Eye Cameras. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). A visual client front-end is used for controller/tracker configuration. The [FAQ](https://github.com/psmoveservice/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
 
 # PSMoveSteamVRBridge Client
 If you want to use PSMove controllers in SteamVR, please check out the [PSMoveSteamVRBridge](https://github.com/HipsterSloth/PSMoveSteamVRBridge) github page. The existing steamvr support moved into this project.
 
 # Prebuilt Releases
-You can download prebuilt releases (Windows only at the moment) from the [Releases](https://github.com/cboulay/PSMoveService/releases) page. Then follow the initial setup instructions found in the [wiki](https://github.com/cboulay/PSMoveService/wiki#initial-setup). 
+You can download prebuilt releases (Windows only at the moment) from the [Releases](https://github.com/psmoveservice/PSMoveService/releases) page. Then follow the initial setup instructions found in the [wiki](https://github.com/psmoveservice/PSMoveService/wiki#initial-setup). 
 
 # Building from source
-If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
+If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/psmoveservice/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
 
 # Documentation
-* General setup guides, troubleshooting and design docs can be found on the [wiki](https://github.com/cboulay/PSMoveService/wiki)
+* General setup guides, troubleshooting and design docs can be found on the [wiki](https://github.com/psmoveservice/PSMoveService/wiki)
 * Documentation for the code is hosted on [codedocs](https://codedocs.xyz/HipsterSloth/PSMoveService/) (In Progress)
 
 # Getting Help
