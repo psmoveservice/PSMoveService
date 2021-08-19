@@ -37,8 +37,8 @@ class PSMoveServiceImpl
 {
 public:
     PSMoveServiceImpl()
-        : m_io_service()
-        , m_signals(m_io_service)
+        : m_io_context()
+        , m_signals(m_io_context)
         , m_usb_device_manager()
         , m_device_manager()
         , m_request_handler(&m_device_manager)
@@ -179,7 +179,7 @@ private:
 		*/
         if (success)
         {
-            if (!m_network_manager.startup(&m_io_service, &m_request_handler))
+            if (!m_network_manager.startup(&m_io_context, &m_request_handler))
             {
                 SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service network manager";
                 success= false;
@@ -243,8 +243,8 @@ private:
     }
 
 private:   
-    // The io_service used to perform asynchronous operations.
-    boost::asio::io_service m_io_service;
+    // The io_context used to perform asynchronous operations.
+    boost::asio::io_context m_io_context;
        
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;

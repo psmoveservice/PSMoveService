@@ -86,7 +86,9 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
     list(APPEND PSMOVESERVICE_PLATFORM_SRC
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPILinux.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPILinux.cpp)
 ENDIF()
 source_group("Platform" FILES ${PSMOVESERVICE_PLATFORM_SRC})
 
@@ -151,7 +153,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/lockfreequeue)
 
 # Eigen math library
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS Eigen3::Eigen)
 
 # mherb/Kalman library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
@@ -159,12 +161,11 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/
-    ${ROOT_DIR}/thirdparty/Boost.Application/example/
-    ${ROOT_DIR}/thirdparty/type_index/include/)
+    ${ROOT_DIR}/thirdparty/Boost.Application/example/)
 
 # Protobuf (already found in top-level CMakeLists)
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
-list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Protobuf_INCLUDE_DIRS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Protobuf_LIBRARIES})
 
 # Boost. TODO: Trim this list.
 find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
@@ -174,7 +175,7 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
 # hidapi
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${HIDAPI_SRC})
-list(APPEND PSMOVE_SERVICE_REQ_LIBS ${HIDAPI_LIBS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${HIDAPI_LIBRARIES})
 
 # LibUSB for device management
 find_package(USB1 REQUIRED)
@@ -185,21 +186,19 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBSTEM_GAMEPAD_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${LIBSTEM_GAMEPAD_SRC})
 
-# PSMoveDataFrame
+# PSMoveProtocol OBJECT lib
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
-# PSMoveMath
+# PSMoveMath OBJECT lib
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmovemath/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 
 # Tracker
 # Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
-# OpenCV - empty on Windows
-IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
-ENDIF()
+# OpenCV
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
 
 # PS Eye - This brings in LIBUSB on Windows and Mac, but not Linux
@@ -208,12 +207,8 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PSEYE_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PSEYE_LIBRARIES})
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
-target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
-target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
-
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(PSMoveService opencv)
-ENDIF()
+target_include_directories(PSMoveService PRIVATE ${PSMOVE_SERVICE_INCL_DIRS})
+target_link_libraries(PSMoveService PRIVATE ${PSMOVE_SERVICE_REQ_LIBS})
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -253,10 +248,8 @@ ENDIF()
 IF(MSVC)
 	# Create the new PSMS admin exe (same code as PSMS)
 	add_executable(PSMoveServiceAdmin ${PSMOVESERVICE_SRC})
-	target_include_directories(PSMoveServiceAdmin PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
+	target_include_directories(PSMoveServiceAdmin PRIVATE ${PSMOVE_SERVICE_INCL_DIRS})
 	target_link_libraries(PSMoveServiceAdmin ${PSMOVE_SERVICE_REQ_LIBS})
-	
-	add_dependencies(PSMoveServiceAdmin opencv)
 	
 	# set the UAC level in the property sheet
     set_target_properties(PSMoveServiceAdmin PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")

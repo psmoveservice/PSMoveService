@@ -586,7 +586,6 @@ void AppStage_DistortionCalibration::renderUI()
     const float k_panel_width = 200.f;
     const char *k_window_title = "Distortion Calibration";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

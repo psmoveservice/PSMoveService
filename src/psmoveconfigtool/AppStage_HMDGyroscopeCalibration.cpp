@@ -387,7 +387,6 @@ void AppStage_HMDGyroscopeCalibration::renderUI()
     const float k_panel_width = 500;
     const char *k_window_title = "HMD Gyroscope Calibration";
     const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |

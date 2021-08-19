@@ -38,10 +38,10 @@ public:
         : m_server_host(host)
         , m_server_port(port)
 
-        , m_io_service()
-        , m_tcp_socket(m_io_service)
+        , m_io_context()
+        , m_tcp_socket(m_io_context)
         , m_tcp_connection_id(-1)
-        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), 0))
+        , m_udp_socket(m_io_context, udp::endpoint(udp::v4(), 0))
         , m_udp_server_endpoint()
         , m_udp_remote_endpoint()
         , m_connection_stopped(false)
@@ -69,7 +69,7 @@ public:
 
     bool start()
     {
-        tcp::resolver resolver(m_io_service);
+        tcp::resolver resolver(m_io_context);
         tcp::resolver::iterator endpoint_iter= resolver.resolve(tcp::resolver::query(tcp::v4(), m_server_host, m_server_port));
 
         m_connection_stopped= false;
@@ -108,7 +108,7 @@ public:
             // * TCP request has finished writing
             // * TCP response has finished receiving
             // * UDP data frame has finished writing
-            m_io_service.poll();
+            m_io_context.poll();
 
             // In the event that a UDP data frame write completed immediately,
             // we should start another UDP data frame write.
@@ -291,7 +291,7 @@ private:
             CLIENT_LOG_DEBUG("   ") << msg_size << " bytes";
 
             // Start an asynchronous operation to send the data frame
-            // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+            // NOTE: Even if the write completes immediate, the callback will only be called from io_context::poll()
             m_udp_socket.async_send_to(
                 boost::asio::buffer(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)),
                 m_udp_server_endpoint,
@@ -598,7 +598,7 @@ private:
                         m_has_pending_udp_write = true;
 
                         // Start an asynchronous operation to send the data frame
-                        // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+                        // NOTE: Even if the write completes immediate, the callback will only be called from io_context::poll()
                         m_udp_socket.async_send_to(
                             boost::asio::buffer(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)),
                             m_udp_server_endpoint,
@@ -719,7 +719,7 @@ private:
     std::string m_server_host;
     std::string m_server_port;
 
-    asio::io_service m_io_service;
+    asio::io_context m_io_context;
     tcp::socket m_tcp_socket;
     int m_tcp_connection_id;
 

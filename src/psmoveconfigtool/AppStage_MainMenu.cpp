@@ -63,7 +63,6 @@ void AppStage_MainMenu::renderUI()
     case connectedToService:
         {
             ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
                 ImGuiWindowFlags_NoResize | 
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar |
@@ -100,7 +99,6 @@ void AppStage_MainMenu::renderUI()
     case pendingConnectToToService:
         {
             ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
                 ImGuiWindowFlags_NoResize | 
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar |
@@ -119,7 +117,6 @@ void AppStage_MainMenu::renderUI()
 	case disconnectedFromService:
         {
             ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
                 ImGuiWindowFlags_NoResize | 
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar |

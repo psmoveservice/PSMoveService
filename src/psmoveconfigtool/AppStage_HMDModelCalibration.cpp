@@ -545,7 +545,6 @@ void AppStage_HMDModelCalibration::renderUI()
 	const float k_panel_width = 300.f;
 	const char *k_window_title = "Compute HMD Model";
 	const ImGuiWindowFlags window_flags =
-		ImGuiWindowFlags_ShowBorders |
 		ImGuiWindowFlags_NoResize |
 		ImGuiWindowFlags_NoMove |
 		ImGuiWindowFlags_NoScrollbar |

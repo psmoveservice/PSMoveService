@@ -43,21 +43,21 @@ endif()
 #links against static runtime, so we need our apps to link
 #against the static runtime too.
 #https://cmake.org/Wiki/CMake_FAQ#How_can_I_build_my_MSVC_application_with_a_static_runtime.3F
-IF(MSVC)
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+#IF(MSVC)
+#    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+#    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 
-    set(CompilerFlags
-        CMAKE_CXX_FLAGS
-        CMAKE_CXX_FLAGS_DEBUG
-        CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_C_FLAGS
-        CMAKE_C_FLAGS_DEBUG
-        CMAKE_C_FLAGS_RELEASE
-        )
-    foreach(CompilerFlag ${CompilerFlags})
-      string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-    endforeach()
-ELSE()
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
-ENDIF(MSVC)
+#    set(CompilerFlags
+#        CMAKE_CXX_FLAGS
+#        CMAKE_CXX_FLAGS_DEBUG
+#        CMAKE_CXX_FLAGS_RELEASE
+#        CMAKE_C_FLAGS
+#        CMAKE_C_FLAGS_DEBUG
+#        CMAKE_C_FLAGS_RELEASE
+#        )
+#    foreach(CompilerFlag ${CompilerFlags})
+#      string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+#    endforeach()
+#ELSE()
+#    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
+#ENDIF(MSVC)
